@@ -7,9 +7,11 @@ import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:intl/intl.dart';
+import 'package:school_nx_pro/utils/CustomText.dart';
 import 'package:school_nx_pro/utils/enum.dart';
 import 'package:school_nx_pro/utils/http_client_manager.dart';
 import 'package:school_nx_pro/utils/my_sharepreferences.dart';
+import 'package:school_nx_pro/utils/utils.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class LocalImageStorage {
@@ -99,6 +101,8 @@ class LocalEventStorage {
     };
 
     eventsMap[eventId.toString()] = eventData;
+    debugPrint("Local Event Stored : ${eventsMap.toString()}");
+
     await prefs.setString(key, jsonEncode(eventsMap));
   }
 
@@ -220,13 +224,21 @@ class EventService {
     );
 
     List<EventModel> eventList = [];
-    
+
+    debugPrint("Fetch Event url  : ${ Uri.parse("https://api.schoolnxpro.com/api/EventWithImages?instituteId=$instituteId")}");
+    debugPrint("Fetch Event response : ${response.body.toString()}");
+
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
       List events = data['data'] ?? [];
 
       // server events
       eventList = events.map((e) => EventModel.fromJson(e)).toList();
+
+      // for(var i=0; i<eventList.length; i++){
+      //
+      //   debugPrint("Event Id : ${eventList[i].eventId} | Name : ${eventList[i].eventName} | Date : ${eventList[i].eventDate}");
+      // }
     }
 
     // 🔹 Get local events (events created locally but not yet synced to API)
@@ -1330,39 +1342,54 @@ class EventService {
       List<Map<String, dynamic>> attempts = [
         {
           'method': 'json',
-          'endpoint': 'https://api.schoolnxpro.com/api/Event',
+          'endpoint': 'https://api.schoolnxpro.com/api/Holiday',
         },
         {
           'method': 'json',
-          'endpoint': 'https://api.schoolnxpro.com/api/Event/Create',
+          // 'endpoint': 'https://api.schoolnxpro.com/api/Event/Create',
+          'endpoint': 'https://api.schoolnxpro.com/api/Holiday',
         },
         {
-          'method': 'multipart',
-          'endpoint': 'https://api.schoolnxpro.com/api/Event',
+          'method': 'json',
+          'endpoint': 'https://api.schoolnxpro.com/api/Holiday',
         },
         {
-          'method': 'multipart',
-          'endpoint': 'https://api.schoolnxpro.com/api/Event/Create',
+          'method': 'json',
+          // 'endpoint': 'https://api.schoolnxpro.com/api/Event/Create',
+          'endpoint': 'https://api.schoolnxpro.com/api/Holiday',
         },
       ];
       
       for (var attempt in attempts) {
         final endpoint = attempt['endpoint'] as String;
         final method = attempt['method'] as String;
-        
+
+        debugPrint("Create Event Method : $method , endPoint : $endpoint");
         try {
           if (method == 'json') {
             // Try JSON POST
-            final eventData = {
-              'eventName': eventName,
-              'eventDate': formattedDate,
-              'sectionId': sectionId,
-              'employeeId': employeeId,
-              'instituteId': int.tryParse(instituteId) ?? 10085,
-              if (imageUrl != null) 'imageUrl': imageUrl,
-              if (filename != null) 'filename': filename,
-            };
+            // final eventData = {
+            //   'eventName': eventName,
+            //   'eventDate': formattedDate,
+            //   'sectionId': sectionId,
+            //   'employeeId': employeeId,
+            //   'reason': Utils.generateRandomCode(),
+            //   'instituteId': int.tryParse(instituteId) ?? 10085,
+            //   if (imageUrl != null) 'imageUrl': imageUrl,
+            //   if (filename != null) 'filename': filename,
+            // };
 
+            final eventData = {
+              'holidayForMonthDate': formattedDate,
+              'instituteId': int.tryParse(instituteId) ?? 10085,
+              'holidayDetails': [
+                {
+                  'holidayOn': formattedDate,
+                  'reason': Utils.generateRandomCode(),
+                }
+              ],
+            };
+            
             final response = await client.post(
               Uri.parse(endpoint),
               headers: {
@@ -1372,6 +1399,7 @@ class EventService {
               body: json.encode(eventData),
             ).timeout(const Duration(seconds: 10));
 
+            print("📥 Create Event url : ${Uri.parse(endpoint)}");
             print("📥 Create Event (JSON) Response Status ($endpoint): ${response.statusCode}");
             print("📥 Create Event Response Body: ${response.body}");
 
@@ -1396,7 +1424,7 @@ class EventService {
             
             // Add form fields
             request.fields['eventName'] = eventName;
-            request.fields['eventDate'] = formattedDate;
+            request.fields['holidayForMonthDate'] = formattedDate;
             request.fields['sectionId'] = sectionId.toString();
             request.fields['employeeId'] = employeeId.toString();
             request.fields['instituteId'] = instituteId;
@@ -1633,6 +1661,9 @@ class EventService {
             },
             body: json.encode(eventData),
           ).timeout(const Duration(seconds: 10));
+
+          debugPrint("Api Event url : https://api.schoolnxpro.com/api/Event");
+          debugPrint("Api Event response : ${response.body.toString()}");
 
           if (response.statusCode == 200 || response.statusCode == 201) {
             await LocalEventStorage.markEventSynced(eventId);
@@ -1978,7 +2009,7 @@ class _EmployeeEventScreenState extends State<EmployeeEventScreen> {
                                            'Section ${section['sectionId']}';
                           return DropdownMenuItem<Map<String, dynamic>>(
                             value: section,
-                            child: Text(displayName),
+                            child: CustomText.TextRegular(displayName,maxLine: 2),
                           );
                         }).toList(),
                         onChanged: (value) {
@@ -2206,6 +2237,7 @@ class _EmployeeEventScreenState extends State<EmployeeEventScreen> {
 
   @override
   Widget build(BuildContext context) {
+
     return Scaffold(
       appBar: AppBar(title: const Text("Events")),
       floatingActionButton: FloatingActionButton(
