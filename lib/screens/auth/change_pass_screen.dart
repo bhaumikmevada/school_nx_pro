@@ -55,7 +55,7 @@ class ChangePassScreenState extends State<ChangePassScreen> {
             mainAxisAlignment: MainAxisAlignment.start,
             children: <Widget>[
 
-              SizedBox(height: 20.0),
+              SizedBox(height: MediaQuery.of(context).size.height / 7),
               ClipRRect(
                 borderRadius: BorderRadius.circular(50.0),
                 child: Image.asset(
@@ -105,7 +105,7 @@ class ChangePassScreenState extends State<ChangePassScreen> {
                         ),
 
                         SizedBox(
-                          height:  15,
+                          height:  35,
                         ),
                         SizedBox(
                           width:  MediaQuery.of(context).size.width,

@@ -34,6 +34,7 @@ import '../../../provider/auth_provider.dart';
 import '../../../utils/ConstantUtils.dart';
 import '../../../utils/CustomText.dart';
 import '../../../utils/PreferenceUtils.dart';
+import '../../../utils/safe_logout.dart';
 import '../../auth/login_screen.dart';
 import '../../auth/select_institute_screen.dart';
 import '../../auth/select_student_screen.dart';
@@ -113,6 +114,9 @@ class _ParentDashboardState extends State<ParentDashboard> {
     
     // Load data asynchronously without blocking UI
     _initializeData();
+
+
+
   }
   Map<String, dynamic>? _getMatchingChild() {
     // Only recalculate if studentId or children list changed
@@ -162,6 +166,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final cachedEventsJson = prefs.getString('cached_events');
+      debugPrint("cachedEventJson : $cachedEventsJson");
       if (cachedEventsJson != null) {
         final List<dynamic> decoded = json.decode(cachedEventsJson);
         final cachedEvents = decoded.map((e) => EventGallery.fromJson(e)).toList();
@@ -325,14 +330,20 @@ class _ParentDashboardState extends State<ParentDashboard> {
 
   Future<void> refreshDashboard() async {
     // Refresh all data in parallel
-    await Future.wait([
-      parentDashboardProvider.getStudentDetails(),
-      holidayProvider.getHoliday(),
-      homeworkProvider.fetchHomework(studentId),
-      schoolCircularProvider.getSchoolCircular(),
-      _loadEventData(),
-    ]);
-    
+    // await Future.wait([
+    //   parentDashboardProvider.getStudentDetails(),
+    //   holidayProvider.getHoliday(),
+    //   homeworkProvider.fetchHomework(studentId),
+    //   schoolCircularProvider.getSchoolCircular(),
+    //   _loadEventData(),
+    // ]);
+
+    parentDashboardProvider.getStudentDetails();
+    holidayProvider.getHoliday();
+    homeworkProvider.fetchHomework(studentId);
+    schoolCircularProvider.getSchoolCircular();
+    _loadEventData();
+
     if (mounted) {
       setState(() {});
     }
@@ -356,13 +367,13 @@ class _ParentDashboardState extends State<ParentDashboard> {
         ?  AppColors.blue : Colors.transparent;
     final textColor = isSelected ? AppColors.whiteColor : AppColors.blackColor;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: selectedBgColor,
-      ),
-      padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 8.0),
-      child: GestureDetector(
-        onTap: onTap,
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: selectedBgColor,
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 8.0),
         child: Row(
           children: [
             Padding(
@@ -422,7 +433,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
       appBar: ParentAppbar(
         isDash: true,
         onStudentChanged: (String studentId) {
-          print("student id : $studentId");
+          print("student id onChange : $studentId");
           setState(() {
             loading = true;
           });
@@ -451,7 +462,8 @@ class _ParentDashboardState extends State<ParentDashboard> {
             padding: EdgeInsets.zero,
             children: [
               Container(
-                height: 120,
+                height: 180,
+                padding: EdgeInsets.only(top: 20),
                 decoration: BoxDecoration(
                   color: AppColors.blue, // Dark variant for header
                   borderRadius: BorderRadius.zero,
@@ -722,13 +734,15 @@ class _ParentDashboardState extends State<ParentDashboard> {
                     selectedIndex = 9;
                     PreferenceUtils.saveInt(PREF_DRAWER_INDEX, selectedIndex);
                     Navigator.pop(context);
-                    Navigator.pushAndRemoveUntil(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const LoginScreen(),
-                      ),
-                          (route) => false,
-                    );
+                    SafeLogout.logout().then((value) {
+                      Navigator.pushAndRemoveUntil(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const LoginScreen(),
+                        ),
+                            (route) => false,
+                      );
+                    });
                   });
                 },
               ),
@@ -740,8 +754,10 @@ class _ParentDashboardState extends State<ParentDashboard> {
                     return const SizedBox.shrink();
                   }
 
-                  final isParent = authProvider.userType.toLowerCase() == 'parent';
+                  debugPrint("userType : ${authProvider.userType.toLowerCase()}");
 
+                  final isParent = authProvider.userType.toLowerCase() == 'parent';
+                  debugPrint("userType : ${isParent}");
                   return Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 15),
                     child: Row(
@@ -848,10 +864,12 @@ class _ParentDashboardState extends State<ParentDashboard> {
                             }
                           },
                         ),
-                        Text(
-                          "Parent",
-                          style: boldBlack.copyWith(fontSize: 18),
+                        CustomText.TextMedium(
+                          parent,
+                          fontSize: 14.0,
+                          color: AppColors.blackColor, // Dynamic text color
                         ),
+
                       ],
                     ),
                   );
@@ -862,106 +880,145 @@ class _ParentDashboardState extends State<ParentDashboard> {
         ),
       ),
       body: loading
-          ? const Center(child: CircularProgressIndicator())
+          ?  Center(child: Container())
           : SingleChildScrollView(
               child: Column(
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: GestureDetector(
-                      // onTap: () {
-                      //   Navigator.push(
-                      //     context,
-                      //     MaterialPageRoute(
-                      //       builder: (context) => const ProfileScreen(
-                      //         userType: UserType.parent,
-                      //       ),
-                      //     ),
-                      //   );
-                      // },
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => ProfileScreen(
-                              userType: UserType.parent,
-                              name: widget.loginData['userName'] ?? 'N/A',
-                              firstName: widget.loginData['firstName'] ?? 'N/A',
-                              lastName: widget.loginData['lastName'] ?? 'N/A',
-                              mobile: widget.loginData['mobileNo'] ?? "+91",
-                              type: 'Parent',
+                  Row(
+                    children: [
+                      Container(
+                        margin: const EdgeInsets.only(left: 20),
+                        height: 60,
+                        width: 60,
+                        child: InkWell(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => ProfileScreen(
+                                  userType: UserType.parent,
+                                  name: widget.loginData['userName'] ?? 'N/A',
+                                  firstName: widget.loginData['firstName'] ?? 'N/A',
+                                  lastName: widget.loginData['lastName'] ?? 'N/A',
+                                  mobile: widget.loginData['mobileNo'] ?? "+91",
+                                  type: 'Parent',
+                                ),
+                              ),
+                            ).then((result) {
+                              if (result != null && result is Map<String, dynamic>) {
+                                refreshDashboard();
+                                setState(() {});
+                              }
+                            });
+                          },
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(100),
+                            child: Image.asset(
+                              AppImages.example,
+                              height: 70,
+                              width: 70,
+                              fit: BoxFit.cover,
                             ),
                           ),
-                        ).then((result) {
-                          if (result != null && result is Map<String, dynamic>) {
-                            refreshDashboard();
-                            setState(() {});
-                          }
-                        });
-                      },
-                      child: Row(
-                        children: [
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
 
-                          const SizedBox(width: 25),
-                          // Text(
-                          //   parentName ?? " N/A",
-                          //   style: boldBlack.copyWith(fontSize: 23),
-                          // ),
-                        ],
+                            CustomText.TextRegular(
+                              "$studentName",
+                              fontSize: 14.0,
+                              color: Colors.black, // Keep white for header contrast
+                            ),
+                            const SizedBox(height: 2),
+
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+
+                                CustomText.TextMedium(
+                                  "Fin. Year : ",
+                                  fontSize: 14.0,
+                                  color: Colors.black, // Keep white for header contrast
+                                ),
+                                const SizedBox(width: 7),
+                                CustomText.TextMedium(
+                                  financialYear,
+                                  fontSize: 14.0,
+                                  color: Colors.black, // Keep white for header contrast
+                                ),
+
+                              ],
+                            ),
+
+                            const SizedBox(height: 5),
+                            CustomText.TextMedium(
+                              "Date : $formattedDate",
+                              fontSize: 12.0,
+                              color: Colors.black, // Keep white for header contrast
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
+                    ],
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 30),
                   Container(
-                    height: MediaQuery.of(context).size.height / 4.6,
+                    height: MediaQuery.of(context).size.height / 5.3,
                     width: double.maxFinite,
-                    decoration: const BoxDecoration(
-                      color: AppColors.blue,
-                      borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(30),
-                        topRight: Radius.circular(30),
-                      ),
-                    ),
+                    margin: EdgeInsets.only(left: 20,right: 20),
                     child: Padding(
                       padding: const EdgeInsets.only(bottom: 25),
                       child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
-                          GestureDetector(
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => AttendanceScreen(userType: UserType.parent, studentId: studentId),
-                                      // const ParentAttendanceScreen(),
-                                ),
-                              );
-                            },
-                            child: Container(
-                              height: 100,
-                              width: 150,
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(25),
-                              ),
-                              child: Padding(
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => AttendanceScreen(userType: UserType.parent, studentId: studentId),
+                                    // const ParentAttendanceScreen(),
+                                  ),
+                                );
+                              },
+                              child: Container(
                                 padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(10),
+                                  color: Colors.white,
+                                  border: Border.all(color: AppColors.blue, width: 1),
+                                  boxShadow: const [
+                                    BoxShadow(
+                                      color: Colors.black12,
+                                      blurRadius: 4,
+                                      offset: Offset(0, 3),
+                                    ),
+                                  ],
+                                ),
                                 child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    const Text("Total Present Days"),
-                                    Divider(color: AppColors.blue),
+                                    Center(
+                                      child: CustomText.TextMedium("Total Present Days",textAlign: TextAlign.center),
+                                    ),
+                                    Divider(color: AppColors.colorDADADA),
+                                    const SizedBox(height: 10,),
                                     Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceEvenly,
+                                      mainAxisAlignment: MainAxisAlignment.center,
                                       children: [
                                         const Icon(
                                           Icons.check_circle,
                                           color: Colors.green,
                                         ),
-                                        Text(
-                                          "263",
-                                          style: boldBlack,
+                                        const SizedBox(width: 10.0,),
+                                        CustomText.TextMedium(
+                                          "263",fontSize: 18.0
                                         ),
                                       ],
                                     ),
@@ -970,33 +1027,43 @@ class _ParentDashboardState extends State<ParentDashboard> {
                               ),
                             ),
                           ),
-                          GestureDetector(
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => AttendanceScreen(userType: UserType.parent, studentId: studentId),
-                                  // const ParentAttendanceScreen(),
-                                ),
-                              );
-                            },
-                            child: Container(
-                              height: 100,
-                              width: 150,
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(25),
-                              ),
-                              child: Padding(
+                          const SizedBox(width: 10.0,),
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => AttendanceScreen(userType: UserType.parent, studentId: studentId),
+                                    // const ParentAttendanceScreen(),
+                                  ),
+                                );
+                              },
+                              child: Container(
                                 padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(10),
+                                  color: Colors.white,
+                                  border: Border.all(color: AppColors.blue, width: 1),
+                                  boxShadow: const [
+                                    BoxShadow(
+                                      color: Colors.black12,
+                                      blurRadius: 4,
+                                      offset: Offset(0, 3),
+                                    ),
+                                  ],
+                                ),
                                 child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    const Text("Total Absent Days"),
-                                    Divider(color: AppColors.blue),
+                                    Center(
+                                      child: CustomText.TextMedium("Total Absent Days",textAlign: TextAlign.center),
+                                    ),
+                                    Divider(color: AppColors.colorDADADA),
+                                    const SizedBox(height: 10,),
                                     Row(
-                                      mainAxisAlignment:
-                                      MainAxisAlignment.spaceEvenly,
+                                      mainAxisAlignment: MainAxisAlignment.center,
                                       children: [
                                         Container(
                                           height: 20,
@@ -1013,9 +1080,10 @@ class _ParentDashboardState extends State<ParentDashboard> {
                                             ),
                                           ),
                                         ),
-                                        Text(
+                                        const SizedBox(width: 10.0,),
+                                        CustomText.TextMedium(
                                           "29",
-                                          style: boldBlack,
+                                          fontSize: 18.0,
                                         ),
                                       ],
                                     )
@@ -1023,7 +1091,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
                                 ),
                               ),
                             ),
-                          ),
+                          )
                         ],
                       ),
                     ),
@@ -1033,22 +1101,22 @@ class _ParentDashboardState extends State<ParentDashboard> {
                     // height: MediaQuery.of(context).size.height / 1.2,
                     width: double.maxFinite,
                     decoration: const BoxDecoration(
-                      color: AppColors.bgColor,
+                      color: AppColors.whiteColor,
                       borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(30),
-                        topRight: Radius.circular(30),
+                        topLeft: Radius.circular(0),
+                        topRight: Radius.circular(20),
                       ),
                     ),
                     child: Padding(
                       padding: const EdgeInsets.all(20),
                       child: Column(
                         children: [
-                          // Align(
-                          //     alignment: Alignment.centerLeft,
-                          //     child: Text("Fee Details", style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.w600))),
-                          // SizedBox(height: 10),
-                          // dueFeesCard(context, parentDashboardProvider),
-                          // SizedBox(height: 20),
+                          Align(
+                              alignment: Alignment.centerLeft,
+                              child: CustomText.TextMedium("Fee Details", fontSize: 18.0, )),
+                          SizedBox(height: 10),
+                          dueFeesCard(context, parentDashboardProvider,studentName),
+                          SizedBox(height: 20),
                           Align(
                               alignment: Alignment.centerLeft,
                               child: Text("Home Work", style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.w600))),
@@ -1068,9 +1136,9 @@ class _ParentDashboardState extends State<ParentDashboard> {
                               return Container(
                                 height: 120,
                                 decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(25),
+                                  borderRadius: BorderRadius.circular(10),
                                   color: Colors.white,
-                                  border: Border.all(color: AppColors.blue, width: 2),
+                                  // border: Border.all(color: AppColors.blue, width: 2),
                                   boxShadow: const [
                                     BoxShadow(
                                       color: Colors.black12,
@@ -1086,21 +1154,13 @@ class _ParentDashboardState extends State<ParentDashboard> {
                                       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
                                       decoration: BoxDecoration(
                                         color: AppColors.blue,
-                                        borderRadius: BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20))
+                                        borderRadius: BorderRadius.only(topLeft: Radius.circular(7), topRight: Radius.circular(7))
                                       ),
                                       child: Row(
                                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                         children: [
-                                          Text(hw.subjectName,
-                                              style: const TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 16,
-                                                  color: Colors.white)),
-                                          Text(formatDate(hw.homeWorkDate),
-                                              style: const TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 16,
-                                                  color: Colors.white)),
+                                          CustomText.TextSemiBold(hw.subjectName,fontSize: 14.0,color: AppColors.whiteColor),
+                                          CustomText.TextSemiBold(formatDate(hw.homeWorkDate),fontSize: 14.0,color: AppColors.whiteColor),
                                         ],
                                       ),
                                     ),
@@ -1119,155 +1179,354 @@ class _ParentDashboardState extends State<ParentDashboard> {
                             },
                           ),
                           SizedBox(height: 20),
-                          Align(
-                              alignment: Alignment.centerLeft,
-                              child: Text("Holidays", style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.w600))),
-                          SizedBox(height: 10),
-                          Selector<HolidayProviders, List<HolidayModels>>(
-                            selector: (p0, p1) => p1.getHolidayList,
-                            builder: (context, holidayList, child) {
-                              return holidayList.isEmpty
-                                  ? const Center(
-                                      child: Text("No Data Awailable", style: TextStyle(color: Colors.black),),
-                                    )
-                                  : SizedBox(
-                                height: 160,
-                                child: ListView.builder(
-                                itemCount: holidayList.length,
-                                  itemBuilder: (context, index) {
-                                  final holiday = holidayList[index];
-                                  return Card(
-                                    margin: const EdgeInsets.symmetric(vertical: 5),
-                                    elevation: 2,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(25),
-                                      side: const BorderSide(color: AppColors.blue),
-                                    ),
-                                    child: Container(
-                                      width: double.infinity,
-                                      decoration: const BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius: BorderRadius.all(Radius.circular(25)),
-                                      ),
-                                      child: IntrinsicHeight(
-                                        child: Row(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Container(
-                                              width: MediaQuery.of(context).size.width / 2.8,
-                                              decoration: const BoxDecoration(
-                                                color: AppColors.blue,
-                                                borderRadius: BorderRadius.all(Radius.circular(25)),
-                                              ),
-                                              child: Center(
-                                                child: Text(holiday.holidayOn,
-                                                  textAlign: TextAlign.center,
-                                                  style: normalWhite.copyWith(
-                                                    fontWeight: FontWeight.w700,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                            Expanded(
-                                              child: Padding(
-                                                padding: const EdgeInsets.symmetric(vertical: 10),
-                                                child: Column(
-                                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                                                  mainAxisSize: MainAxisSize.max,
-                                                  children: [
-                                                    Padding(
-                                                      padding: const EdgeInsets.symmetric(horizontal: 2),
-                                                      child: Text(holiday.reason,
-                                                        textAlign: TextAlign.center,
-                                                        style: normalBlack.copyWith(
-                                                          fontWeight: FontWeight.w700,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                },
-                                ),
-                              );
-                            },
-                          ),
-                          SizedBox(height: 20),
-                          Align(
-                              alignment: Alignment.centerLeft,
-                              child: Text("Events", style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.w600))),
-                          SizedBox(height: 10),
-                          // Show cached events immediately, update when new data arrives
-                          events.isEmpty
-                              ? const Center(child: Text("No data available"))
-                              : SizedBox(
-                            height: 100,
-                                child: ListView.builder(
-                                  itemCount: events.length,
-                                  itemBuilder: (context, index) {
-                                    final event = events[index];
-                                    return AppCard(
-                                      mainTitle: event.eventDate,
-                                      upperTitle: event.eventName,
-                                      widget: Text(
-                                        event.eventDate,
-                                        style: normalBlack,
+
+                          Row(
+                            children: [
+
+                              Expanded(
+                                child: GestureDetector(
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(builder: (context) =>
+                                          HolidaysScreen(userType: UserType.parent)
                                       ),
                                     );
                                   },
+                                  child: Container(
+                                    padding: const EdgeInsets.all(25),
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(10),
+                                      color: Colors.white,
+                                      border: Border.all(color: AppColors.colorDADADA, width: 1),
+                                      boxShadow: const [
+                                        BoxShadow(
+                                          color: Colors.black12,
+                                          blurRadius: 4,
+                                          offset: Offset(0, 3),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.center,
+                                      children: [
+                                        Image.asset(
+                                          AppIcons.holidays,
+                                          height: 30,
+                                          width: 30,
+                                          color: AppColors.blue,
+                                        ),
+                                        const SizedBox(height: 5,),
+                                        CustomText.TextMedium(
+                                          menuHoliday,
+                                          fontSize: 14.0,
+                                          color: AppColors.blackColor, // Dynamic text color
+                                        )
+                                      ],
+                                    ),
+                                  ),
                                 ),
                               ),
-                          SizedBox(height: 20),
-                          Align(
-                              alignment: Alignment.centerLeft,
-                              child: Text("Gallery", style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.w600))),
-                          SizedBox(height: 10),
-                          // Show cached events immediately, refresh in background
-                          FutureBuilder<List<EventGallery>>(
-                            future: _loadGalleryDataWithCache(),
-                            builder: (context, snapshot) {
-                              // Show cached data immediately if available
-                              if (snapshot.connectionState == ConnectionState.waiting && events.isEmpty) {
-                                return const Center(child: CircularProgressIndicator());
-                              } else if (snapshot.hasError) {
-                                // On error, show cached events if available
-                                if (events.isNotEmpty) {
-                                  return _buildGalleryGrid(context, events);
-                                }
-                                return Center(child: Text('Error: ${snapshot.error}'));
-                              } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                                // If no new data but we have cached events, show them
-                                if (events.isNotEmpty) {
-                                  return _buildGalleryGrid(context, events);
-                                }
-                                return const Center(child: Text("No gallery data available"));
-                              }
 
-                              final galleryEvents = snapshot.data!;
-                              // Update cached events
-                              if (mounted) {
-                                WidgetsBinding.instance.addPostFrameCallback((_) {
-                                  if (mounted) {
-                                    setState(() {
-                                      events = galleryEvents;
-                                    });
-                                  }
-                                });
-                                // Cache events for next time (fire and forget)
-                                _cacheEvents(galleryEvents);
-                              }
+                              const SizedBox(width: 20,),
 
-                              return _buildGalleryGrid(context, galleryEvents);
-                            },
+                              Expanded(
+                                child: GestureDetector(
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(builder: (context) =>
+                                          EventScreen(userType: UserType.parent)
+                                      ),
+                                    );
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.all(25),
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(10),
+                                      color: Colors.white,
+                                      border: Border.all(color: AppColors.colorDADADA, width: 1),
+                                      boxShadow: const [
+                                        BoxShadow(
+                                          color: Colors.black12,
+                                          blurRadius: 4,
+                                          offset: Offset(0, 3),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.center,
+                                      children: [
+                                        Image.asset(
+                                          AppIcons.schoolCircular,
+                                          height: 30,
+                                          width: 30,
+                                          color: AppColors.blue,
+                                        ),
+                                        const SizedBox(height: 5,),
+                                        CustomText.TextMedium(
+                                          menuEvent,
+                                          fontSize: 14.0,
+                                          color: AppColors.blackColor, // Dynamic text color
+                                        )
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              )
+
+                            ],
                           ),
-                          SizedBox(height: 10),
+
+                          const SizedBox(height: 20,),
+
+                          Row(
+                            children: [
+
+                              Expanded(
+                                child: GestureDetector(
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(builder: (context) =>
+                                          ParentGalleryScreen()
+                                      ),
+                                    );
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.all(25),
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(10),
+                                      color: Colors.white,
+                                      border: Border.all(color: AppColors.colorDADADA, width: 1),
+                                      boxShadow: const [
+                                        BoxShadow(
+                                          color: Colors.black12,
+                                          blurRadius: 4,
+                                          offset: Offset(0, 3),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.center,
+                                      children: [
+                                        Image.asset(
+                                          AppIcons.gallery,
+                                          height: 30,
+                                          width: 30,
+                                          color: AppColors.blue,
+                                        ),
+                                        const SizedBox(height: 5,),
+                                        CustomText.TextMedium(
+                                          menuGallery,
+                                          fontSize: 14.0,
+                                          color: AppColors.blackColor, // Dynamic text color
+                                        )
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+
+                              const SizedBox(width: 20,),
+
+                              Expanded(
+                                child: GestureDetector(
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(builder: (context) =>
+                                          ParentResultScreen()
+                                      ),
+                                    );
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.all(25),
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(10),
+                                      color: Colors.white,
+                                      border: Border.all(color: AppColors.colorDADADA, width: 1),
+                                      boxShadow: const [
+                                        BoxShadow(
+                                          color: Colors.black12,
+                                          blurRadius: 4,
+                                          offset: Offset(0, 3),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.center,
+                                      children: [
+                                        Image.asset(
+                                          AppIcons.result,
+                                          height: 30,
+                                          width: 30,
+                                          color: AppColors.blue,
+                                        ),
+                                        const SizedBox(height: 5,),
+                                        CustomText.TextMedium(
+                                          menuResult,
+                                          fontSize: 14.0,
+                                          color: AppColors.blackColor, // Dynamic text color
+                                        )
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+
+                            ],
+                          ),
+
+                          // Align(
+                          //     alignment: Alignment.centerLeft,
+                          //     child: Text("Holidays", style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.w600))),
+                          // SizedBox(height: 10),
+                          // Selector<HolidayProviders, List<HolidayModels>>(
+                          //   selector: (p0, p1) => p1.getHolidayList,
+                          //   builder: (context, holidayList, child) {
+                          //     return holidayList.isEmpty
+                          //         ? const Center(
+                          //             child: Text("No Data Awailable", style: TextStyle(color: Colors.black),),
+                          //           )
+                          //         : SizedBox(
+                          //       height: 160,
+                          //       child: ListView.builder(
+                          //       itemCount: holidayList.length,
+                          //         itemBuilder: (context, index) {
+                          //         final holiday = holidayList[index];
+                          //         return Card(
+                          //           margin: const EdgeInsets.symmetric(vertical: 5),
+                          //           elevation: 2,
+                          //           shape: RoundedRectangleBorder(
+                          //             borderRadius: BorderRadius.circular(25),
+                          //             side: const BorderSide(color: AppColors.blue),
+                          //           ),
+                          //           child: Container(
+                          //             width: double.infinity,
+                          //             decoration: const BoxDecoration(
+                          //               color: Colors.white,
+                          //               borderRadius: BorderRadius.all(Radius.circular(25)),
+                          //             ),
+                          //             child: IntrinsicHeight(
+                          //               child: Row(
+                          //                 crossAxisAlignment: CrossAxisAlignment.start,
+                          //                 children: [
+                          //                   Container(
+                          //                     width: MediaQuery.of(context).size.width / 2.8,
+                          //                     decoration: const BoxDecoration(
+                          //                       color: AppColors.blue,
+                          //                       borderRadius: BorderRadius.all(Radius.circular(25)),
+                          //                     ),
+                          //                     child: Center(
+                          //                       child: Text(holiday.holidayOn,
+                          //                         textAlign: TextAlign.center,
+                          //                         style: normalWhite.copyWith(
+                          //                           fontWeight: FontWeight.w700,
+                          //                         ),
+                          //                       ),
+                          //                     ),
+                          //                   ),
+                          //                   Expanded(
+                          //                     child: Padding(
+                          //                       padding: const EdgeInsets.symmetric(vertical: 10),
+                          //                       child: Column(
+                          //                         crossAxisAlignment: CrossAxisAlignment.center,
+                          //                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          //                         mainAxisSize: MainAxisSize.max,
+                          //                         children: [
+                          //                           Padding(
+                          //                             padding: const EdgeInsets.symmetric(horizontal: 2),
+                          //                             child: Text(holiday.reason,
+                          //                               textAlign: TextAlign.center,
+                          //                               style: normalBlack.copyWith(
+                          //                                 fontWeight: FontWeight.w700,
+                          //                               ),
+                          //                             ),
+                          //                           ),
+                          //                         ],
+                          //                       ),
+                          //                     ),
+                          //                   ),
+                          //                 ],
+                          //               ),
+                          //             ),
+                          //           ),
+                          //         );
+                          //       },
+                          //       ),
+                          //     );
+                          //   },
+                          // ),
+                          // SizedBox(height: 20),
+                          // Align(
+                          //     alignment: Alignment.centerLeft,
+                          //     child: Text("Events", style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.w600))),
+                          // SizedBox(height: 10),
+                          // // Show cached events immediately, update when new data arrives
+                          // events.isEmpty
+                          //     ? const Center(child: Text("No data available"))
+                          //     : SizedBox(
+                          //   height: 100,
+                          //       child: ListView.builder(
+                          //         itemCount: events.length,
+                          //         itemBuilder: (context, index) {
+                          //           final event = events[index];
+                          //           return AppCard(
+                          //             mainTitle: event.eventDate,
+                          //             upperTitle: event.eventName,
+                          //             widget: Text(
+                          //               event.eventDate,
+                          //               style: normalBlack,
+                          //             ),
+                          //           );
+                          //         },
+                          //       ),
+                          //     ),
+                          // SizedBox(height: 20),
+                          // Align(
+                          //     alignment: Alignment.centerLeft,
+                          //     child: Text("Gallery", style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.w600))),
+                          // SizedBox(height: 10),
+                          // // Show cached events immediately, refresh in background
+                          // FutureBuilder<List<EventGallery>>(
+                          //   future: _loadGalleryDataWithCache(),
+                          //   builder: (context, snapshot) {
+                          //     // Show cached data immediately if available
+                          //     if (snapshot.connectionState == ConnectionState.waiting && events.isEmpty) {
+                          //       return const Center(child: CircularProgressIndicator());
+                          //     } else if (snapshot.hasError) {
+                          //       // On error, show cached events if available
+                          //       if (events.isNotEmpty) {
+                          //         return _buildGalleryGrid(context, events);
+                          //       }
+                          //       return Center(child: Text('Error: ${snapshot.error}'));
+                          //     } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                          //       // If no new data but we have cached events, show them
+                          //       if (events.isNotEmpty) {
+                          //         return _buildGalleryGrid(context, events);
+                          //       }
+                          //       return const Center(child: Text("No gallery data available"));
+                          //     }
+                          //
+                          //     final galleryEvents = snapshot.data!;
+                          //     // Update cached events
+                          //     if (mounted) {
+                          //       WidgetsBinding.instance.addPostFrameCallback((_) {
+                          //         if (mounted) {
+                          //           setState(() {
+                          //             events = galleryEvents;
+                          //           });
+                          //         }
+                          //       });
+                          //       // Cache events for next time (fire and forget)
+                          //       _cacheEvents(galleryEvents);
+                          //     }
+                          //
+                          //     return _buildGalleryGrid(context, galleryEvents);
+                          //   },
+                          // ),
+                          // SizedBox(height: 10),
                         ],
                       ),
                     ),
@@ -1283,8 +1542,8 @@ class _ParentDashboardState extends State<ParentDashboard> {
       padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: Row(
         children: [
-          Expanded(flex: 2, child: Text("$title :", style: const TextStyle(fontWeight: FontWeight.w600))),
-          Expanded(flex: 4, child: Text(value ?? "-")),
+          Expanded(flex: 2, child: CustomText.TextSemiBold("$title :", )),
+          Expanded(flex: 4, child: CustomText.TextRegular(value ?? "-")),
         ],
       ),
     );
@@ -1292,12 +1551,12 @@ class _ParentDashboardState extends State<ParentDashboard> {
 
   Card dueFeesCard(
     BuildContext context,
-    ParentDashboardProvider provider,
+    ParentDashboardProvider provider, String studentName,
   ) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(25),
+        borderRadius: BorderRadius.circular(10),
         side: const BorderSide(color: AppColors.blue),
       ),
       child: Consumer<ParentDashboardProvider>(
@@ -1307,7 +1566,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
             width: double.maxFinite,
             decoration: const BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.all(Radius.circular(25)),
+              borderRadius: BorderRadius.all(Radius.circular(10)),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
@@ -1317,8 +1576,8 @@ class _ParentDashboardState extends State<ParentDashboard> {
                   child: Padding(
                     padding: const EdgeInsets.only(left: 12),
                     child: Text(
-                      student.studentDetails?.studentDetails.studentName ??
-                          "N/A",
+                      // student.studentDetails?.studentDetails.studentName ?? "N/A",
+                      studentName ?? "N/A",
                       style: boldBlack,
                     ),
                   ),
@@ -1327,35 +1586,44 @@ class _ParentDashboardState extends State<ParentDashboard> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Text("Net Due"),
-                      Text(
+
+                      CustomText.TextMedium(
+                          "Net Due",
+                      ),
+                      student.studentDetails?.totalDue.remainingAmount.toString() == null ?
+                          Container() :
+                      CustomText.TextMedium(
                         "₹ ${student.studentDetails?.totalDue.remainingAmount.toString()}",
-                        style: boldBlack,
                       ),
                     ],
                   ),
                 ),
                 GestureDetector(
                   onTap: () {
+                    debugPrint("Student Details : ${student.studentDetails}");
+
                     showFeesPaymentPopup(
                       context,
                       provider,
-                      student.studentDetails!.totalDue.remainingAmount.toString(),
+                      "",
+                        // student.studentDetails?.totalDue.remainingAmount.toString()
                     );
                   },
                   child: Container(
-                    height: double.maxFinite,
+                    height: 50,
+                    margin: EdgeInsets.only(right: 10),
                     width: MediaQuery.of(context).size.width / 4.3,
                     decoration: const BoxDecoration(
-                      color: Colors.grey,
+                      color: AppColors.blue,
                       borderRadius: BorderRadius.all(
                         Radius.circular(25),
                       ),
                     ),
                     child: Center(
-                      child: Text(
+                      child: CustomText.TextMedium(
                         "Pay",
-                        style: boldWhite,
+                        fontSize: 15.0,
+                        color: AppColors.whiteColor
                       ),
                     ),
                   ),

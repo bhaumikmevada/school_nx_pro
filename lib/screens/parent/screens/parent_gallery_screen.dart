@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:school_nx_pro/components/app_button.dart';
 import 'package:school_nx_pro/screens/parent/parent_components/parent_appbar.dart';
 import 'package:school_nx_pro/theme/app_colors.dart';
@@ -36,6 +37,9 @@ Future<List<EventGallery>> fetchGalleryData() async {
     Uri.parse(url),
     headers: {'Content-Type': 'application/json'},
   );
+
+  debugPrint("event url : $url");
+  debugPrint("event response : ${response.body.toString()}");
 
   if (response.statusCode == 200) {
     final body = json.decode(response.body);

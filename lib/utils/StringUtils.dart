@@ -19,6 +19,7 @@ const menuResult = "Result";
 const menuRules = "Rules & Regulations";
 const menuLogout = "Log Out";
 const employee = "Employee";
+const parent = "Parent";
 
 const validationMobile = "Please Enter Mobile Number";
 const validationPassword = "Please Enter password";

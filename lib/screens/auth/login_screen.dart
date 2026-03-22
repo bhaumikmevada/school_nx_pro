@@ -53,7 +53,7 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.start,
             children: <Widget>[
-              SizedBox(height: MediaQuery.of(context).size.height / 8),
+              SizedBox(height: MediaQuery.of(context).size.height / 5),
               ClipRRect(
                 borderRadius: BorderRadius.circular(50.0),
                 child: Image.asset(

@@ -16,7 +16,7 @@ class ParentDashboardProvider extends ChangeNotifier {
       log(studentDetails.toString(), name: "getStudentDetails");
       notifyListeners();
     } catch (e) {
-      scaffoldMessage(message: "Something went wrong");
+      // scaffoldMessage(message: "Something went wrong");
     }
   }
 

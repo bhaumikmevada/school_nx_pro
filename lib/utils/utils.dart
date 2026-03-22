@@ -1,8 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:intl/intl.dart';
 import 'package:school_nx_pro/utils/keys.dart';
 
 import '../theme/app_colors.dart';
@@ -50,6 +52,30 @@ class Utils {
       textColor: Colors.white,
       fontSize: 16,
     );
+  }
+
+  static String generateRandomCode() {
+    const String chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    final Random rnd = Random();
+    return String.fromCharCodes(
+        List.generate(6, (_) => chars.codeUnitAt(rnd.nextInt(chars.length)))
+    );
+  }
+
+  static String convertDateFormat({
+    required String inputDate,
+    required String inputFormat,
+    required String outputFormat,
+  }) {
+    try {
+      final inputFormatter = DateFormat(inputFormat);
+      final outputFormatter = DateFormat(outputFormat);
+
+      DateTime dateTime = inputFormatter.parse(inputDate);
+      return outputFormatter.format(dateTime);
+    } catch (e) {
+      return inputDate; // fallback if parsing fails
+    }
   }
 
   static Future<List<String>> imagesToBase64(List<File> images) async {

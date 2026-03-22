@@ -80,5 +80,25 @@
         <package android:name="net.one97.paytm" />
         <package android:name="in.org.npci.upiapp" />
         <package android:name="com.amazon.pay" />
+
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="http" />
+            <data />
+        </intent>
+
+        <!-- If opening local files (file:// URIs for PDFs, images, etc.) -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="file" />
+        </intent>
+
+        <!-- Optional: Add if you use other schemes like mailto:, tel:, sms:, whatsapp:, etc. -->
+        <!-- Example for mailto: -->
+        <intent>
+            <action android:name="android.intent.action.SENDTO" />
+            <data android:scheme="mailto" />
+        </intent>
+
     </queries>
 </manifest>

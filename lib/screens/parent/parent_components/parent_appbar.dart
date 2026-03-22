@@ -62,6 +62,7 @@ class _ParentAppbarState extends State<ParentAppbar> {
           )['studentId']
           .toString();
 
+      debugPrint("Children List : ${childrenList}");
       // Save the selected student ID
       MySharedPreferences.instance.setStringValue(
         'studentId',
@@ -198,8 +199,13 @@ class _ParentAppbarState extends State<ParentAppbar> {
   @override
   Widget build(BuildContext context) {
     return AppBar(
-      backgroundColor: AppColors.bgColor,
+      backgroundColor: AppColors.whiteColor,
       automaticallyImplyLeading: false,
+      shadowColor: AppColors.whiteColor,
+      bottomOpacity: 2.0,
+      elevation: 0.0,
+      surfaceTintColor: AppColors.whiteColor,
+      titleSpacing: 0.0,
       centerTitle: false,
       title: Row(
         children: [
@@ -213,6 +219,8 @@ class _ParentAppbarState extends State<ParentAppbar> {
             ),
           )
               : IconButton(
+            splashColor: Colors.transparent,
+            highlightColor: Colors.transparent,
             onPressed: () {
               Navigator.pop(context);
             },
@@ -224,7 +232,7 @@ class _ParentAppbarState extends State<ParentAppbar> {
                 shape: BoxShape.circle,
               ),
               child: const Icon(
-                Icons.home,
+                Icons.arrow_back,
                 color: Colors.white,
                 size: 30,
               ),

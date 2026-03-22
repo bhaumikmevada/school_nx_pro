@@ -7,6 +7,9 @@ import 'package:school_nx_pro/theme/font_theme.dart';
 import 'package:school_nx_pro/utils/enum.dart';
 import 'package:school_nx_pro/utils/http_client_manager.dart';
 
+import '../../utils/CustomText.dart';
+import '../../utils/utils.dart';
+
 class HolidayModels {
   final String holidayOn;
   final String reason;
@@ -111,66 +114,117 @@ class _HolidaysScreenState extends State<HolidaysScreen> {
                           itemCount: holidayList.length,
                           itemBuilder: (context, index) {
                             final holiday = holidayList[index];
-
-                            return Card(
-                              margin: const EdgeInsets.symmetric(vertical: 5),
-                              elevation: 2,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(25),
-                                side: const BorderSide(color: AppColors.blue),
+                            return Container(
+                              margin: EdgeInsets.all(5),
+                              decoration: BoxDecoration(
+                                  border: Border.all(color: AppColors.colorcfcfcf,width: 1),
+                                  color: AppColors.whiteColor,
+                                  borderRadius: BorderRadius.circular(10),
+                                  boxShadow: [
+                                    BoxShadow(color: AppColors.colorcfcfcf,blurRadius: 2.0,offset: Offset(1.0, 0.0))
+                                  ]
                               ),
-                              child: Container(
-                                // height: double.infinity,
-                                width: double.infinity,
-                                decoration: const BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.all(Radius.circular(25)),
-                                ),
-                                child: IntrinsicHeight(
-                                  child: Row(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                mainAxisAlignment: MainAxisAlignment.start,
+                                children: [
+
+                                  Stack(
+                                    alignment: Alignment.topRight,
                                     children: [
+
                                       Container(
-                                        width: MediaQuery.of(context).size.width / 2.8,
-                                        decoration: const BoxDecoration(
-                                          color: AppColors.blue,
-                                          borderRadius: BorderRadius.all(Radius.circular(25)),
+                                        width: 100,
+                                        height: 30,
+                                        alignment: Alignment.center,
+                                        decoration: BoxDecoration(
+                                            borderRadius: BorderRadius.only(
+                                                topRight: Radius.circular(9)
+                                            ),
+                                            color: AppColors.blue
                                         ),
-                                        child: Center(
-                                                child: Text(holiday.holidayOn,
-                                                  textAlign: TextAlign.center,
-                                                  style: normalWhite.copyWith(
-                                                    fontWeight: FontWeight.w700,
-                                                  ),
-                                                ),
-                                              ),
+                                        child: CustomText.TextMedium(holiday.holidayOn,fontSize: 13.0,color: AppColors.whiteColor,textAlign: TextAlign.center),
                                       ),
-                                      Expanded(
-                                        child: Padding(
-                                          padding: const EdgeInsets.symmetric(vertical: 10),
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.center,
-                                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                                            mainAxisSize: MainAxisSize.max,
-                                            children: [
-                                              Padding(
-                                                padding: const EdgeInsets.symmetric(horizontal: 2),
-                                                child: Text(holiday.reason,
-                                                  textAlign: TextAlign.center,
-                                                  style: normalBlack.copyWith(
-                                                    fontWeight: FontWeight.w700,
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
+
+                                      Container(
+                                        padding: EdgeInsets.all(20),
+                                        child: Row(
+                                          children: [
+
+                                            const SizedBox(width: 10,),
+
+                                            CustomText.TextSemiBold(holiday.reason,color: AppColors.blackColor),
+
+
+                                          ],
                                         ),
-                                      ),
+                                      )
+
                                     ],
-                                  ),
-                                ),
+                                  )
+                                ],
                               ),
                             );
+
+                            // return Card(
+                            //   margin: const EdgeInsets.symmetric(vertical: 5),
+                            //   elevation: 2,
+                            //   shape: RoundedRectangleBorder(
+                            //     borderRadius: BorderRadius.circular(25),
+                            //     side: const BorderSide(color: AppColors.blue),
+                            //   ),
+                            //   child: Container(
+                            //     // height: double.infinity,
+                            //     width: double.infinity,
+                            //     decoration: const BoxDecoration(
+                            //       color: Colors.white,
+                            //       borderRadius: BorderRadius.all(Radius.circular(25)),
+                            //     ),
+                            //     child: IntrinsicHeight(
+                            //       child: Row(
+                            //         crossAxisAlignment: CrossAxisAlignment.start,
+                            //         children: [
+                            //           Container(
+                            //             width: MediaQuery.of(context).size.width / 2.8,
+                            //             decoration: const BoxDecoration(
+                            //               color: AppColors.blue,
+                            //               borderRadius: BorderRadius.all(Radius.circular(25)),
+                            //             ),
+                            //             child: Center(
+                            //               child: Text(holiday.holidayOn,
+                            //                 textAlign: TextAlign.center,
+                            //                 style: normalWhite.copyWith(
+                            //                   fontWeight: FontWeight.w700,
+                            //                 ),
+                            //               ),
+                            //             ),
+                            //           ),
+                            //           Expanded(
+                            //             child: Padding(
+                            //               padding: const EdgeInsets.symmetric(vertical: 10),
+                            //               child: Column(
+                            //                 crossAxisAlignment: CrossAxisAlignment.center,
+                            //                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            //                 mainAxisSize: MainAxisSize.max,
+                            //                 children: [
+                            //                   Padding(
+                            //                     padding: const EdgeInsets.symmetric(horizontal: 2),
+                            //                     child: Text(holiday.reason,
+                            //                       textAlign: TextAlign.center,
+                            //                       style: normalBlack.copyWith(
+                            //                         fontWeight: FontWeight.w700,
+                            //                       ),
+                            //                     ),
+                            //                   ),
+                            //                 ],
+                            //               ),
+                            //             ),
+                            //           ),
+                            //         ],
+                            //       ),
+                            //     ),
+                            //   ),
+                            // );
                             // return AppCard(
                             //   mainTitle: holiday.holidayOn,
                             //   upperTitle: holiday.reason,

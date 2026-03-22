@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:school_nx_pro/provider/auth_provider.dart';
 import 'package:school_nx_pro/provider/employee_attendance_provider.dart';
@@ -12,6 +13,7 @@ import 'package:school_nx_pro/provider/result_provider.dart';
 import 'package:school_nx_pro/provider/school_circular_provider.dart';
 import 'package:school_nx_pro/screens/auth/splash_screen.dart';
 import 'package:school_nx_pro/screens/common_screens/holidays_screen.dart';
+import 'package:school_nx_pro/theme/app_colors.dart';
 import 'package:school_nx_pro/utils/PreferenceUtils.dart';
 
 Future<void> main() async {
@@ -19,6 +21,11 @@ Future<void> main() async {
   // if (kDebugMode) {
   WidgetsFlutterBinding.ensureInitialized();
   HttpOverrides.global = MyHttpOverrides();
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: AppColors.whiteColor,
+    statusBarIconBrightness: Brightness.dark,
+    statusBarBrightness: Brightness.light,
+  ));
   // }
   await PreferenceUtils.getInstance();
   runApp(const MyApp());

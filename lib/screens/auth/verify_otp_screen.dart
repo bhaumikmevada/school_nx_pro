@@ -54,7 +54,7 @@ class VerifyOtpScreenState extends State<VerifyOtpScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.start,
             children: <Widget>[
-              SizedBox(height: 20.0),
+              SizedBox(height: MediaQuery.of(context).size.height / 8),
               ClipRRect(
                 borderRadius: BorderRadius.circular(50.0),
                 child: Image.asset(

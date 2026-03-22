@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:developer';
+import 'package:flutter/widgets.dart';
 import 'package:school_nx_pro/models/parent_dashboard_model.dart';
 import 'package:school_nx_pro/repository/base_repo.dart';
 import 'package:school_nx_pro/utils/api_urls.dart';
@@ -11,6 +12,8 @@ class ParentDashboardRepo extends BaseRepository {
     // String? sessionYear =
     //     await MySharedPreferences.instance.getStringValue("sessionYear") ??
     //         "2024-2025";
+
+    debugPrint("Clicked detail called ");
 
     String? studentId =
         await MySharedPreferences.instance.getStringValue("studentId");
