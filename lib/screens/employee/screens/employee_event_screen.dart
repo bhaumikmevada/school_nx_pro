@@ -7,12 +7,22 @@ import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import 'package:school_nx_pro/utils/CustomText.dart';
+import 'package:school_nx_pro/utils/api_urls.dart';
 import 'package:school_nx_pro/utils/enum.dart';
 import 'package:school_nx_pro/utils/http_client_manager.dart';
 import 'package:school_nx_pro/utils/my_sharepreferences.dart';
 import 'package:school_nx_pro/utils/utils.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../../components/app_dropdown.dart';
+import '../../../models/course_model.dart';
+import '../../../models/medium_model.dart';
+import '../../../models/section_model.dart';
+import '../../../models/stream_model.dart';
+import '../../../models/sub_stream_model.dart';
+import '../../../provider/employee_attendance_provider.dart';
 
 class LocalImageStorage {
   static const String key = "local_event_images";
@@ -1247,12 +1257,143 @@ class EventService {
   }
 
   /// Create a new event with image upload
+
   static Future<Map<String, dynamic>> createEvent({
     required DateTime eventDate,
     required String eventName,
-    required int sectionId,
+    required String sectionId,     // String because Postman sends as text
+    required String courseId,      // String because Postman sends as text
+    required int employeeId,
+    required File imageFile,       // now required (as per your UI)
+    String? instituteId,           // optional, will fallback
+  }) async {
+    try {
+      // ── Get token ───────────────────────────────────────────────────────
+      String? token = await MySharedPreferences.instance.getStringValue("token");
+
+      // ── Get / fallback instituteId ─────────────────────────────────────
+      instituteId ??= await MySharedPreferences.instance.getStringValue("instituteId");
+      instituteId ??= "10085";
+
+      // ── Format date ─────────────────────────────────────────────────────
+      final formattedDate = DateFormat('yyyy-MM-dd').format(eventDate);
+
+      // ── Build multipart request ────────────────────────────────────────
+      final uri = Uri.parse("${ApiUrls.baseUrl}Event/CreateEvent");
+
+      var request = http.MultipartRequest('POST', uri);
+
+      // Headers
+      request.headers.addAll({
+        'Accept': 'application/json',
+        if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+      });
+
+      // ── Text fields (exact keys from Postman) ──────────────────────────
+      request.fields.addAll({
+        'EventName': eventName.trim(),
+        'EventDate': formattedDate,
+        'SectionId': sectionId,           // string
+        'CourseId': courseId,             // string
+        'EmployeeId': employeeId.toString(),
+        'InstituteId': instituteId,
+      });
+
+      // ── Add image file (key = "File") ──────────────────────────────────
+      if (!await imageFile.exists()) {
+        return {
+          'success': false,
+          'error': 'Image file does not exist',
+        };
+      }
+
+      final fileName = imageFile.path.split(Platform.pathSeparator).last;
+      final extension = fileName.split('.').last.toLowerCase();
+
+      String mimeType = 'image/jpeg';
+      if (extension == 'png') mimeType = 'image/png';
+      if (extension == 'webp') mimeType = 'image/webp';
+
+      final multipartFile = await http.MultipartFile.fromPath(
+        'File',               // ← VERY IMPORTANT: exact key from Postman
+        imageFile.path,
+        filename: fileName,
+        contentType: MediaType.parse(mimeType),
+      );
+
+      request.files.add(multipartFile);
+
+      // ── Send request ───────────────────────────────────────────────────
+      print("📤 Sending multipart request to: $uri");
+      print("📋 Fields: ${request.fields}");
+      print("📎 File: $fileName (${(await imageFile.length() / 1024).toStringAsFixed(1)} KB)");
+
+      final streamedResponse = await request.send().timeout(
+        const Duration(seconds: 60),
+      );
+
+      final response = await http.Response.fromStream(streamedResponse);
+
+      print("📥 Status: ${response.statusCode}");
+      print("📥 Body: ${response.body}");
+
+      // ── Parse response ─────────────────────────────────────────────────
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        Map<String, dynamic> jsonData = {};
+
+        try {
+          jsonData = jsonDecode(response.body);
+        } catch (e) {
+          print("⚠️ Response is not valid JSON: ${response.body}");
+        }
+
+        final success = jsonData['success'] == true;
+        final message = jsonData['message']?.toString() ?? 'Event created';
+        final eventId = jsonData['eventId']?.toString() ?? 'unknown';
+
+        return {
+          'success': success,
+          'message': message,
+          'eventId': eventId,
+          'rawResponse': jsonData,
+          'statusCode': response.statusCode,
+        };
+      } else {
+        String errorMsg = 'Failed to create event (HTTP ${response.statusCode})';
+
+        try {
+          final err = jsonDecode(response.body);
+          errorMsg = err['message'] ?? err['error'] ?? response.body;
+        } catch (_) {
+          errorMsg = response.body.isNotEmpty ? response.body : errorMsg;
+        }
+
+        return {
+          'success': false,
+          'error': errorMsg,
+          'statusCode': response.statusCode,
+        };
+      }
+    } catch (e, stack) {
+      print("❌ createEvent exception: $e");
+      print(stack);
+
+      return {
+        'success': false,
+        'error': e.toString().contains('Timeout')
+            ? 'Request timeout. Please check your internet.'
+            : 'Failed to create event: $e',
+      };
+    }
+  }
+
+  static Future<Map<String, dynamic>> createEvent11({
+    required DateTime eventDate,
+    required String eventName,
+    required String sectionId,
     required File? imageFile,
     required int employeeId,
+    required String courseId,
   }) async {
     try {
       // Get authentication token if available
@@ -1305,7 +1446,7 @@ class EventService {
           imageFile,
           uniqueDescription, // Includes event name and date
           employeeId,
-          sectionId,
+          int.parse(sectionId),
           eventName: eventName, // Pass event name as separate parameter
           eventDate: formattedDate, // Pass event date as separate parameter
         );
@@ -1340,23 +1481,22 @@ class EventService {
       
       // Try multiple approaches: JSON POST, Multipart POST, and query params
       List<Map<String, dynamic>> attempts = [
+        // {
+        //   'method': 'json',
+        //   'endpoint': 'https://api.schoolnxpro.com/api/Holiday',
+        // },
+        // {
+        //   'method': 'multipart',
+        //   'endpoint': 'https://api.schoolnxpro.com/api/Event/CreateEvent',
+        // },
+        // {
+        //   'method': 'json',
+        //   'endpoint': 'https://api.schoolnxpro.com/api/Holiday',
+        // },
         {
-          'method': 'json',
-          'endpoint': 'https://api.schoolnxpro.com/api/Holiday',
-        },
-        {
-          'method': 'json',
-          // 'endpoint': 'https://api.schoolnxpro.com/api/Event/Create',
-          'endpoint': 'https://api.schoolnxpro.com/api/Holiday',
-        },
-        {
-          'method': 'json',
-          'endpoint': 'https://api.schoolnxpro.com/api/Holiday',
-        },
-        {
-          'method': 'json',
-          // 'endpoint': 'https://api.schoolnxpro.com/api/Event/Create',
-          'endpoint': 'https://api.schoolnxpro.com/api/Holiday',
+          'method': 'multipart',
+          'endpoint': 'https://api.schoolnxpro.com/api/Event/CreateEvent',
+
         },
       ];
       
@@ -1368,26 +1508,15 @@ class EventService {
         try {
           if (method == 'json') {
             // Try JSON POST
-            // final eventData = {
-            //   'eventName': eventName,
-            //   'eventDate': formattedDate,
-            //   'sectionId': sectionId,
-            //   'employeeId': employeeId,
-            //   'reason': Utils.generateRandomCode(),
-            //   'instituteId': int.tryParse(instituteId) ?? 10085,
-            //   if (imageUrl != null) 'imageUrl': imageUrl,
-            //   if (filename != null) 'filename': filename,
-            // };
-
             final eventData = {
-              'holidayForMonthDate': formattedDate,
+              'eventName': eventName,
+              'eventDate': formattedDate,
+              'sectionId': sectionId,
+              'employeeId': employeeId,
+              'reason': Utils.generateRandomCode(),
               'instituteId': int.tryParse(instituteId) ?? 10085,
-              'holidayDetails': [
-                {
-                  'holidayOn': formattedDate,
-                  'reason': Utils.generateRandomCode(),
-                }
-              ],
+              if (imageUrl != null) 'imageUrl': imageUrl,
+              if (filename != null) 'filename': filename,
             };
             
             final response = await client.post(
@@ -1424,11 +1553,12 @@ class EventService {
             
             // Add form fields
             request.fields['eventName'] = eventName;
-            request.fields['holidayForMonthDate'] = formattedDate;
+            request.fields['EventDate'] = formattedDate;
             request.fields['sectionId'] = sectionId.toString();
             request.fields['employeeId'] = employeeId.toString();
             request.fields['instituteId'] = instituteId;
-            if (imageUrl != null) request.fields['imageUrl'] = imageUrl;
+            request.fields['CourseId'] = courseId.toString();
+            if (imageUrl != null) request.fields['File'] = imageUrl;
             if (filename != null) request.fields['filename'] = filename;
             
             // Add headers
@@ -1480,10 +1610,10 @@ class EventService {
             if (filename != null) 'filename': filename,
           };
           
-          final uri = Uri.parse('https://api.schoolnxpro.com/api/Event').replace(
-            queryParameters: queryParams,
-          );
-          
+          // final uri = Uri.parse('https://api.schoolnxpro.com/api/Event/CreateEvent').replace(
+          //   queryParameters: queryParams,
+          // );
+          final uri = Uri.parse('https://api.schoolnxpro.com/api/Event/CreateEvent');
           final response = await client.post(
             uri,
             headers: {
@@ -1492,6 +1622,7 @@ class EventService {
             },
           ).timeout(const Duration(seconds: 10));
           
+          print("📥 Create Event URL : https://api.schoolnxpro.com/api/Event/CreateEvent");
           print("📥 Create Event (Query Params) Response Status: ${response.statusCode}");
           print("📥 Create Event Response Body: ${response.body}");
           
@@ -1521,7 +1652,7 @@ class EventService {
         eventId: finalEventId,
         eventName: eventName,
         eventDate: eventDate,
-        sectionId: sectionId,
+        sectionId: int.parse(sectionId),
         employeeId: employeeId,
         imageUrl: imageUrl,
         filename: filename,
@@ -1904,6 +2035,22 @@ class _EmployeeEventScreenState extends State<EmployeeEventScreen> {
     final TextEditingController eventNameController = TextEditingController();
     Map<String, dynamic>? selectedSection;
     File? selectedImage;
+    CourseModel? selectedCourse;
+    SectionModel? selectedSections;
+    MediumModel? selectedMedium;
+
+    final provider = Provider.of<EmployeeAttendanceProvider>(
+      context,
+      listen: false,
+    );
+
+    if (provider.courseList.isEmpty) {
+      await provider.getCourse();
+      await provider.getSection();
+      await provider.getMedium();
+      await provider.getStream();
+      await provider.getSubStream();
+    }
 
     await showDialog(
       context: context,
@@ -1994,28 +2141,85 @@ class _EmployeeEventScreenState extends State<EmployeeEventScreen> {
                       const SizedBox(height: 16),
 
                       // Full Allotment Name (Section Dropdown)
-                      DropdownButtonFormField<Map<String, dynamic>>(
-                        decoration: const InputDecoration(
-                          labelText: "Full Allotment Name *",
-                          border: OutlineInputBorder(),
-                        ),
-                        value: selectedSection,
-                        hint: const Text("Select Section"),
-                        items: sections.map((section) {
-                          // Use fullAllotmentName if available, otherwise build from fields
-                          final displayName = section['fullAllotmentName'] ?? 
-                                           section['fullName'] ?? 
-                                           section['sectionName'] ?? 
-                                           'Section ${section['sectionId']}';
-                          return DropdownMenuItem<Map<String, dynamic>>(
-                            value: section,
-                            child: CustomText.TextRegular(displayName,maxLine: 2),
-                          );
-                        }).toList(),
-                        onChanged: (value) {
-                          setStateDialog(() => selectedSection = value);
+                      // DropdownButtonFormField<Map<String, dynamic>>(
+                      //   decoration: const InputDecoration(
+                      //     labelText: "Full Allotment Name *",
+                      //     border: OutlineInputBorder(),
+                      //   ),
+                      //   value: selectedSection,
+                      //   hint: const Text("Select Section"),
+                      //   items: sections.map((section) {
+                      //     // Use fullAllotmentName if available, otherwise build from fields
+                      //     final displayName = section['fullAllotmentName'] ??
+                      //                      section['fullName'] ??
+                      //                      section['sectionName'] ??
+                      //                      'Section ${section['sectionId']}';
+                      //     return DropdownMenuItem<Map<String, dynamic>>(
+                      //       value: section,
+                      //       child: CustomText.TextRegular(displayName,maxLine: 2),
+                      //     );
+                      //   }).toList(),
+                      //   onChanged: (value) {
+                      //     setStateDialog(() => selectedSection = value);
+                      //   },
+                      // ),
+
+                      AppDropDown(
+                        labelText: "Select Course *",
+                        value: selectedCourse != null
+                            ? "${selectedCourse!.courseName} (${selectedCourse!.courseId})"
+                            : null,
+                        items: provider.courseList
+                            .map((c) => "${c.courseName} (${c.courseId})")
+                            .toList(),
+                        onChanged: (String? newValue) {
+                          if (newValue == null) return;
+                          setStateDialog(() {
+                            selectedCourse = provider.courseList.firstWhere(
+                                  (c) => "${c.courseName} (${c.courseId})" == newValue,
+                            );
+                          });
                         },
                       ),
+                      const SizedBox(height: 12),
+
+                      AppDropDown(
+                        labelText: "Select Section *",
+                        value: selectedSections != null
+                            ? "${selectedSections!.sectionName} (${selectedSections!.sectionId})"
+                            : null,
+                        items: provider.sectionList
+                            .map((s) => "${s.sectionName} (${s.sectionId})")
+                            .toList(),
+                        onChanged: (String? newValue) {
+                          if (newValue == null) return;
+                          setStateDialog(() {
+                            selectedSections = provider.sectionList.firstWhere(
+                                  (s) => "${s.sectionName} (${s.sectionId})" == newValue,
+                            );
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 12),
+
+                      AppDropDown(
+                        labelText: "Select Medium *",
+                        value: selectedMedium != null
+                            ? "${selectedMedium!.mediumName} (${selectedMedium!.mediumId})"
+                            : null,
+                        items: provider.mediumList
+                            .map((m) => "${m.mediumName} (${m.mediumId})")
+                            .toList(),
+                        onChanged: (String? newValue) {
+                          if (newValue == null) return;
+                          setStateDialog(() {
+                            selectedMedium = provider.mediumList.firstWhere(
+                                  (m) => "${m.mediumName} (${m.mediumId})" == newValue,
+                            );
+                          });
+                        },
+                      ),
+
                       const SizedBox(height: 16),
 
                       // Catalogue Image
@@ -2100,13 +2304,16 @@ class _EmployeeEventScreenState extends State<EmployeeEventScreen> {
                                 );
                                 return;
                               }
-                              if (selectedSection == null) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text("Please select section"),
-                                    backgroundColor: Colors.red,
-                                  ),
-                                );
+                              if (selectedCourse == null) {
+                                Utils.toastMessage("Please select Course");
+                                return;
+                              }
+                              if (selectedSections == null) {
+                                Utils.toastMessage("Please select Section");
+                                return;
+                              }
+                              if (selectedMedium == null) {
+                                Utils.toastMessage("Please select Medium");
                                 return;
                               }
                               if (selectedImage == null) {
@@ -2159,13 +2366,14 @@ class _EmployeeEventScreenState extends State<EmployeeEventScreen> {
                               );
 
                               // Create event
-                              final sectionId = selectedSection!['sectionId'] as int;
+                              // final sectionId = selectedSection!['sectionId'] as int;
                               final result = await EventService.createEvent(
                                 eventDate: selectedDate!,
                                 eventName: eventNameController.text.trim(),
-                                sectionId: sectionId,
-                                imageFile: selectedImage,
+                                sectionId: "${selectedSections?.sectionId.toString()}",
+                                imageFile: selectedImage!,
                                 employeeId: employeeId,
+                                courseId:"${selectedCourse?.courseId.toString()}",
                               );
 
                               // Hide loading - check if mounted and can pop before trying
@@ -2194,13 +2402,14 @@ class _EmployeeEventScreenState extends State<EmployeeEventScreen> {
                                       ? "Event created successfully ✅\nImage uploaded and event saved to API"
                                       : "Event saved successfully ✅\nImage uploaded to API. Event will appear in list after backend processing.";
                                   
-                                  ScaffoldMessenger.of(this.context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(message),
-                                      backgroundColor: Colors.green,
-                                      duration: const Duration(seconds: 5),
-                                    ),
-                                  );
+                                  // ScaffoldMessenger.of(this.context).showSnackBar(
+                                  //   SnackBar(
+                                  //     content: Text(message),
+                                  //     backgroundColor: Colors.green,
+                                  //     duration: const Duration(seconds: 5),
+                                  //   ),
+                                  // );
+                                  Utils.toastMessage(message);
                                 }
                               } else {
                                 final errorMsg =
