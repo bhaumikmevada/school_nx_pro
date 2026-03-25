@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
+import 'package:datepicker_dropdown/datepicker_dropdown.dart';
+import 'package:datepicker_dropdown/order_format.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
@@ -8,6 +10,8 @@ import 'package:http_parser/http_parser.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:school_nx_pro/theme/app_colors.dart';
+import 'package:school_nx_pro/utils/CustomButton.dart';
 import 'package:school_nx_pro/utils/CustomText.dart';
 import 'package:school_nx_pro/utils/api_urls.dart';
 import 'package:school_nx_pro/utils/enum.dart';
@@ -18,6 +22,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../components/app_dropdown.dart';
 import '../../../models/course_model.dart';
+import '../../../models/event_list_model.dart';
 import '../../../models/medium_model.dart';
 import '../../../models/section_model.dart';
 import '../../../models/stream_model.dart';
@@ -229,13 +234,14 @@ class EventService {
     }
     
     final response = await client.get(
-      Uri.parse("https://api.schoolnxpro.com/api/EventWithImages?instituteId=$instituteId"),
+      // Uri.parse("${ApiUrls.baseUrl}/EventWithImages?instituteId=$instituteId"),
+      Uri.parse("${ApiUrls.baseUrl}/EventWithImages?instituteId=$instituteId"),
       headers: {'Content-Type': 'application/json'},
     );
 
     List<EventModel> eventList = [];
 
-    debugPrint("Fetch Event url  : ${ Uri.parse("https://api.schoolnxpro.com/api/EventWithImages?instituteId=$instituteId")}");
+    debugPrint("Fetch Event url  : ${ Uri.parse("${ApiUrls.baseUrl}EventWithImages?instituteId=$instituteId")}");
     debugPrint("Fetch Event response : ${response.body.toString()}");
 
     if (response.statusCode == 200) {
@@ -1826,12 +1832,25 @@ class _EmployeeEventScreenState extends State<EmployeeEventScreen> {
   final ImagePicker picker = ImagePicker();
   List<Map<String, dynamic>> sections = [];
   bool isLoadingSections = false;
+  String _selectedFilterYear = "";
+  String _selectedFilterMonth = "";
 
   @override
   void initState() {
     super.initState();
-    futureEvents = EventService.fetchEvents();
-    _loadSections();
+
+    final DateTime _currentDate = DateTime.now();
+
+    _selectedFilterYear = DateFormat('yyyy').format(_currentDate);
+    _selectedFilterMonth = DateTime.now().month.toString();
+    debugPrint("selectedFilterDate : $_selectedFilterMonth,$_selectedFilterYear");
+    futureEvents = fetchEventsByMonth(
+      year: int.parse(_selectedFilterYear),
+      month: int.parse(_selectedFilterMonth),
+    );
+
+    // futureEvents = EventService.fetchEvents();
+    // _loadSections();
     // Sync unsynced events in background
     EventService.syncUnsyncedEvents();
   }
@@ -1979,7 +1998,11 @@ class _EmployeeEventScreenState extends State<EmployeeEventScreen> {
         // Refresh the events list to get the updated images from the API
         // The backend should link the uploaded image to the appropriate event(s)
         setState(() {
-          futureEvents = EventService.fetchEvents();
+          // futureEvents = EventService.fetchEvents();
+          futureEvents = fetchEventsByMonth(
+            year: int.parse(_selectedFilterYear),
+            month: int.parse(_selectedFilterMonth),
+          );
         });
         
         // If API returned server URL, save it
@@ -2393,7 +2416,11 @@ class _EmployeeEventScreenState extends State<EmployeeEventScreen> {
                                 // Refresh events list
                                 if (mounted) {
                                   setState(() {
-                                    futureEvents = EventService.fetchEvents();
+                                    // futureEvents = EventService.fetchEvents();
+                                    futureEvents = fetchEventsByMonth(
+                                      year: int.parse(_selectedFilterYear),
+                                      month: int.parse(_selectedFilterMonth),
+                                    );
                                   });
                                 }
 
@@ -2444,6 +2471,75 @@ class _EmployeeEventScreenState extends State<EmployeeEventScreen> {
     );
   }
 
+  /// Fetch events by Year and Month using GetEventCalendar API
+  /// Fetch events using GetEventCalendar API and convert to flat list for UI
+  static Future<List<EventModel>> fetchEventsByMonth({
+    required int year,
+    required int month,
+  }) async {
+    try {
+      final client = HttpClientManager.instance.getClient();
+
+      String? instituteId = await MySharedPreferences.instance.getStringValue("instituteId");
+      instituteId ??= "10085";
+
+      final url = Uri.parse(
+        "${ApiUrls.baseUrl}Event/GetEventCalendar?instituteId=$instituteId&year=$year&month=$month",
+      );
+
+      debugPrint("📡 Calling GetEventCalendar: $url");
+
+      final response = await client.get(url);
+
+      if (response.statusCode == 200) {
+        final eventListModel = eventListModelFromJson(response.body);
+
+        if (!eventListModel.success) {
+          print("API returned success: false");
+          return [];
+        }
+
+        // Convert nested structure (Day → Events) into flat EventModel list
+        List<EventModel> eventModels = [];
+
+        for (var day in eventListModel.days) {
+          for (var event in day.events) {
+            eventModels.add(
+              EventModel(
+                eventId: 0, // API doesn't return eventId, so we use 0 or generate one
+                eventName: event.eventName,
+                eventDate: day.date,
+                images: event.images,
+              ),
+            );
+          }
+        }
+
+        // Sort by date (newest first)
+        eventModels.sort((a, b) => b.eventDate.compareTo(a.eventDate));
+
+        debugPrint("✅ Loaded ${eventModels.length} events for $month/$year");
+        return eventModels;
+      } else {
+        print("❌ API Error: ${response.statusCode} - ${response.body}");
+        return [];
+      }
+    } catch (e) {
+      print("❌ fetchEventsByMonth Error: $e");
+      return [];
+    }
+  }
+
+// Filter method
+  Future<void> _applyFilter() async {
+    setState(() {
+      futureEvents = fetchEventsByMonth(
+        year: int.parse(_selectedFilterYear),
+        month: int.parse(_selectedFilterMonth),
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
 
@@ -2454,70 +2550,180 @@ class _EmployeeEventScreenState extends State<EmployeeEventScreen> {
         child: const Icon(Icons.add),
         tooltip: "Add Event",
       ),
-      body: FutureBuilder<List<EventModel>>(
-        future: futureEvents,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          } else if (snapshot.hasError) {
-            return Center(child: Text("Error: ${snapshot.error}"));
-          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(child: Text("No Events Found"));
-          } else {
-            final events = snapshot.data!;
-            return ListView.builder(
-              itemCount: events.length,
-              itemBuilder: (context, index) {
-                final event = events[index];
-                return Card(
-                  margin: const EdgeInsets.all(10),
-                  child: ExpansionTile(
-                    title: Text(event.eventName),
-                    subtitle: Text(event.eventDate.toString().split(" ")[0]),
-                    children: [
-                      if (event.images.isNotEmpty)
-                        SizedBox(
-                          height: 150,
-                          child: ListView.builder(
-                            scrollDirection: Axis.horizontal,
-                            itemCount: event.images.length,
-                            itemBuilder: (context, imgIndex) {
-                              final img = event.images[imgIndex];
+      body: Container(
+        child: Column(
 
-                              // 🔹 Decide local file or server url
-                              if (img.startsWith("http")) {
-                                return Padding(
-                                  padding: const EdgeInsets.all(5),
-                                  child: Image.network(img),
-                                );
-                              } else {
-                                return Padding(
-                                  padding: const EdgeInsets.all(5),
-                                  child: Image.file(File(img)),
-                                );
-                              }
-                            },
-                          ),
-                        )
-                      else
-                        const Padding(
-                          padding: EdgeInsets.all(8.0),
-                          child: Text("No Images Available"),
-                        ),
+          children: [
 
-                      // ➕ Add Image Button
-                      TextButton.icon(
-                        onPressed: () => _pickAndUploadImage(event),
-                        icon: const Icon(Icons.add_a_photo),
-                        label: const Text("Add Image"),
+            Padding(
+              padding: EdgeInsets.fromLTRB(10, 10, 10, 8),
+              child: Row(
+                children: [
+
+                  Expanded(
+                    child: Container(
+                      height: 45,
+                      alignment: Alignment.center,
+                      child: DropdownDatePicker(
+                        dateformatorder: OrderFormat.ydm, // default is myd
+                        inputDecoration: InputDecoration(
+                          fillColor: AppColors.whiteColor,
+                          contentPadding: EdgeInsets.only(left: 20,right: 20),
+                            enabledBorder:  OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: BorderSide(color: AppColors.blue, width: 1.0),
+                            ),
+                            disabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: BorderSide(color: AppColors.blue, width: 1.0),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: BorderSide(color: AppColors.blue, width: 1.0),
+                            ),
+                            border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10))),
+                        isDropdownHideUnderline: true,
+                        isFormValidator: true,
+                        startYear: 1900,
+                        endYear: 2030,
+                        width: 2,
+                        textStyle: TextStyle(fontFamily: CustomText.fontPoppins,fontSize: 12.0),
+                        hintTextStyle: TextStyle(fontFamily: CustomText.fontPoppins,fontSize: 12.0),
+                        showDay: false,
+                        showMonth: false,
+                        showYear: true,
+                        selectedYear: int.parse(_selectedFilterYear),
+                        onChangedDay: (value) => print('onChangedDay: $value'),
+                        onChangedMonth: (value) => print('onChangedMonth: $value'),
+                        onChangedYear: (value) {
+                          print('onChangedYear: $value');
+                          _selectedFilterYear = value.toString();
+                        },
                       ),
-                    ],
+                    ),
                   ),
-                );
-              },
-            );
-          }
-        },
+
+                  const SizedBox(width: 2),
+
+                  // Month Box - Shows Full Month Name
+                  Expanded(
+                    child: Container(
+                      height: 45,
+                      alignment: Alignment.center,
+                      child: DropdownDatePicker(
+                        dateformatorder: OrderFormat.ydm, // default is myd
+                        inputDecoration: InputDecoration(
+                            fillColor: AppColors.whiteColor,
+                            contentPadding: EdgeInsets.only(left: 10,right: 10),
+                            enabledBorder:  OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: BorderSide(color: AppColors.blue, width: 1.0),
+                            ),
+                            disabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: BorderSide(color: AppColors.blue, width: 1.0),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: BorderSide(color: AppColors.blue, width: 1.0),
+                            ),
+                            border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10))),
+                        isDropdownHideUnderline: true,
+                        isFormValidator: true,
+                        width: 2,
+                        textStyle: TextStyle(fontFamily: CustomText.fontPoppins,fontSize: 12.0),
+                        hintTextStyle: TextStyle(fontFamily: CustomText.fontPoppins,fontSize: 12.0),
+                        showDay: false,
+                        showMonth: true,
+                        showYear: false,
+                        selectedMonth: int.parse(_selectedFilterMonth),
+                        onChangedDay: (value) => print('onChangedDay: $value'),
+                        onChangedMonth: (value) {
+                          _selectedFilterMonth = value.toString();
+                        },
+                        onChangedYear: (value) {
+                        },
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(width: 5),
+
+                  Container(
+                    height: 45,
+                    child: CustomButton(
+                      text: "Filter",
+                      callback: _applyFilter,
+                      radius: 10,
+                    ),
+                  )
+                ],
+              ),
+            ),
+
+            Expanded(
+              child: FutureBuilder<List<EventModel>>(
+                future: futureEvents,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  } else if (snapshot.hasError) {
+                    return Center(child: Text("Error: ${snapshot.error}"));
+                  } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                    return const Center(child: Text("No Events Found"));
+                  } else {
+                    final events = snapshot.data!;
+                    return ListView.builder(
+                      itemCount: events.length,
+                      itemBuilder: (context, index) {
+                        final event = events[index];
+                        return Card(
+                          margin: const EdgeInsets.all(10),
+                          child: ExpansionTile(
+                            title: Text(event.eventName),
+                            subtitle: Text(event.eventDate.toString().split(" ")[0]),
+                            children: [
+                              if (event.images.isNotEmpty)
+                                SizedBox(
+                                  height: 150,
+                                  child: ListView.builder(
+                                    scrollDirection: Axis.horizontal,
+                                    itemCount: event.images.length,
+                                    itemBuilder: (context, imgIndex) {
+                                      final img = event.images[imgIndex];
+                                      return Padding(
+                                        padding: const EdgeInsets.all(5),
+                                        child: Image.network(img),
+                                      );
+                                    },
+                                  ),
+                                )
+                              else
+                                const Padding(
+                                  padding: EdgeInsets.all(8.0),
+                                  child: Text("No Images Available"),
+                                ),
+
+                              // ➕ Add Image Button
+                              TextButton.icon(
+                                onPressed: () => _pickAndUploadImage(event),
+                                icon: const Icon(Icons.add_a_photo),
+                                label: const Text("Add Image"),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    );
+                  }
+                },
+              ),
+            )
+
+          ],
+        ),
       ),
     );
   }

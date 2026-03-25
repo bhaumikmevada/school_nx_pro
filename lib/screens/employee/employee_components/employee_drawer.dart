@@ -15,6 +15,7 @@ import 'package:school_nx_pro/screens/employee/screens/employee_holiday_screen.d
 import 'package:school_nx_pro/theme/app_assets.dart';
 import 'package:school_nx_pro/theme/app_colors.dart';
 import 'package:school_nx_pro/theme/font_theme.dart';
+import 'package:school_nx_pro/utils/CustomText.dart';
 import 'package:school_nx_pro/utils/enum.dart';
 import 'package:school_nx_pro/utils/my_sharepreferences.dart';
 import 'package:school_nx_pro/utils/safe_logout.dart';
@@ -68,7 +69,7 @@ class _EmployeeDrawerState extends State<EmployeeDrawer> {
         padding: EdgeInsets.zero,
         children: <Widget>[
           SizedBox(
-            height: MediaQuery.of(context).size.height / 4.5,
+            height: MediaQuery.of(context).size.height / 4.2,
             child: DrawerHeader(
               decoration: const BoxDecoration(
                 color: AppColors.blue,
@@ -78,18 +79,10 @@ class _EmployeeDrawerState extends State<EmployeeDrawer> {
                 child: Column(
                   children: [
                     // School Name with Academic Year
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(institutesString,
-                          style: boldWhite,
-                        ),
-                        const SizedBox(width: 7),
-                        Text(
-                          "[2023 - 2024]",
-                          style: normalWhite,
-                        ),
-                      ],
+                    CustomText.TextSemiBold(institutesString,color: AppColors.whiteColor,fontSize: 16.0),
+                    const SizedBox(width: 7),
+                    Container(
+                      child: CustomText.TextMedium('[2023 - 2024]',color: AppColors.whiteColor),
                     ),
                     const SizedBox(height: 15),
                     // Today's Date
@@ -102,9 +95,9 @@ class _EmployeeDrawerState extends State<EmployeeDrawer> {
                               normalWhite.copyWith(fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(width: 7),
-                        Text(formattedDate,
-                          style: normalWhite,
-                        ),
+                        Expanded(
+                          child: CustomText.TextMedium(formattedDate,color: AppColors.whiteColor,),
+                        )
                       ],
                     ),
                     const SizedBox(height: 10),
@@ -112,16 +105,15 @@ class _EmployeeDrawerState extends State<EmployeeDrawer> {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        Text(
+                        CustomText.TextMedium(
                           "Fin. Year : ",
-                          style:
-                              normalWhite.copyWith(fontWeight: FontWeight.bold),
+                          color: Colors.white,
+                            fontSize: 16.0
                         ),
                         const SizedBox(width: 7),
-                        Text(
-                          "Apr-2024 To Mar-2025",
-                          style: normalWhite,
-                        ),
+                        Expanded(
+                          child: CustomText.TextMedium('Apr-2024 To Mar-2025',color: Colors.white,fontSize: 16.0),
+                        )
                       ],
                     ),
                   ],

@@ -6,8 +6,13 @@ import 'package:provider/provider.dart';
 import 'package:school_nx_pro/provider/holiday_provider.dart';
 import 'package:school_nx_pro/screens/parent/parent_components/parent_appbar.dart';
 import 'package:school_nx_pro/theme/app_colors.dart';
+import 'package:school_nx_pro/utils/api_urls.dart';
 import 'package:school_nx_pro/utils/enum.dart';
 import 'package:school_nx_pro/utils/my_sharepreferences.dart';
+
+import '../../../models/holiday_list_model.dart';
+import '../../../utils/CustomText.dart';
+import '../../../utils/utils.dart';
 
 class EmployeeHolidayScreen extends StatefulWidget {
   final UserType userType;
@@ -19,8 +24,9 @@ class EmployeeHolidayScreen extends StatefulWidget {
 }
 
 class _EmployeeHolidayScreenState extends State<EmployeeHolidayScreen> {
-  final String baseUrl = "https://api.schoolnxpro.com/api/Holiday";
+
   List<Map<String, dynamic>> holidays = [];
+  late Future<HolidayListModel?> futureHolidays;
   bool isLoading = true;
   bool isUpdating = false;
 
@@ -31,89 +37,118 @@ class _EmployeeHolidayScreenState extends State<EmployeeHolidayScreen> {
   }
 
   /// 🔹 Load holidays: try HolidayProvider first (same as rest of app), then direct API with saved instituteId
-  Future<void> _loadHolidays() async {
-    if (!mounted) return;
-    setState(() => isLoading = true);
+  // Future<void> _loadHolidays() async {
+  //   if (!mounted) return;
+  //   setState(() => isLoading = true);
+  //
+  //   try {
+  //     // Use HolidayProvider (same API as attendance/parent) so data shows consistently
+  //     final provider = Provider.of<HolidayProvider>(context, listen: false);
+  //     final count = await provider.getHoliday();
+  //     if (count > 0 && mounted) {
+  //       final list = provider.getHolidayList;
+  //       setState(() {
+  //         holidays = list.map((m) => {
+  //           "holiday_ID": m.holidayID,
+  //           "holidayId": m.holidayID,
+  //           "reason": m.eventName,
+  //           "holidayName": m.eventName,
+  //           "holiday_On": m.holidayOn,
+  //           "holidayOn": m.holidayOn,
+  //           "holidayForMonthDate": m.holidayForMonthDate,
+  //         }).toList();
+  //         isLoading = false;
+  //       });
+  //       return;
+  //     }
+  //   } catch (e) {
+  //     debugPrint("HolidayProvider load error: $e");
+  //   }
+  //
+  //   // Fallback: direct API with instituteId from preferences
+  //   final instituteId = await MySharedPreferences.instance.getStringValue("instituteId") ?? "10085";
+  //   await fetchHolidaysFromApi(instituteId);
+  // }
 
+  Future<void> _loadHolidays() async {
+    setState(() {}); // Just to trigger rebuild if needed
+
+    futureHolidays = fetchHolidaysFromCalendar();
+  }
+
+  Future<HolidayListModel?> fetchHolidaysFromCalendar() async {
     try {
-      // Use HolidayProvider (same API as attendance/parent) so data shows consistently
-      final provider = Provider.of<HolidayProvider>(context, listen: false);
-      final count = await provider.getHoliday();
-      if (count > 0 && mounted) {
-        final list = provider.getHolidayList;
-        setState(() {
-          holidays = list.map((m) => {
-            "holiday_ID": m.holidayID,
-            "holidayId": m.holidayID,
-            "reason": m.eventName,
-            "holidayName": m.eventName,
-            "holiday_On": m.holidayOn,
-            "holidayOn": m.holidayOn,
-            "holidayForMonthDate": m.holidayForMonthDate,
-          }).toList();
-          isLoading = false;
-        });
-        return;
+      final instituteId = await MySharedPreferences.instance.getStringValue("instituteId") ?? "10085";
+
+      final url = Uri.parse(
+        "${ApiUrls.baseUrl}Holiday/GetHolidayCalendar?instituteId=$instituteId",
+      );
+
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        final holidayListModel = holidayListModelFromJson(response.body);
+        return holidayListModel;
+      } else {
+        debugPrint("Holiday Calendar API Error: ${response.statusCode}");
+        return null;
       }
     } catch (e) {
-      debugPrint("HolidayProvider load error: $e");
+      debugPrint("Error fetching holiday calendar: $e");
+      return null;
     }
-
-    // Fallback: direct API with instituteId from preferences
-    final instituteId = await MySharedPreferences.instance.getStringValue("instituteId") ?? "10085";
-    await fetchHolidaysFromApi(instituteId);
   }
 
   /// 🔹 GET Holidays from API (direct) – supports flat list or nested HolidayDetails
-  Future<void> fetchHolidaysFromApi(String instituteId) async {
-    if (!mounted) return;
+  // Future<void> fetchHolidaysFromApi(String instituteId) async {
+  //   if (!mounted) return;
+  //
+  //   final url = Uri.parse("$baseUrl?instituteId=$instituteId");
+  //   final response = await http.get(url);
+  //
+  //   if (!mounted) return;
+  //   if (response.statusCode == 200) {
+  //     final body = jsonDecode(response.body);
+  //     dynamic data = body["data"];
+  //     if (data == null && body["success"] == true) data = body["data"];
+  //     if (data == null) data = [];
+  //
+  //     List<Map<String, dynamic>> flatList = [];
+  //     if (data is List) {
+  //       for (var item in data) {
+  //         final map = Map<String, dynamic>.from(item as Map);
+  //         final details = map["holidayDetails"] ?? map["HolidayDetails"];
+  //         if (details is List && details.isNotEmpty) {
+  //           for (var d in details) {
+  //             final detail = Map<String, dynamic>.from(d as Map);
+  //             flatList.add({
+  //               ...map,
+  //               "reason": detail["reason"] ?? map["reason"] ?? map["holidayName"] ?? "",
+  //               "holiday_On": detail["holiday_On"] ?? detail["holidayOn"] ?? map["holiday_On"] ?? map["holidayOn"] ?? "",
+  //               "holidayDetailId": detail["holidayDetailId"] ?? detail["holidayDetail_ID"],
+  //             });
+  //           }
+  //         } else {
+  //           flatList.add(map);
+  //         }
+  //       }
+  //     }
+  //     if (mounted) {
+  //       setState(() {
+  //         holidays = flatList;
+  //         isLoading = false;
+  //       });
+  //     }
+  //   } else {
+  //     if (mounted) setState(() => isLoading = false);
+  //     debugPrint("Holiday API Error: ${response.body}");
+  //   }
+  // }
 
-    final url = Uri.parse("$baseUrl?instituteId=$instituteId");
-    final response = await http.get(url);
-
-    if (!mounted) return;
-    if (response.statusCode == 200) {
-      final body = jsonDecode(response.body);
-      dynamic data = body["data"];
-      if (data == null && body["success"] == true) data = body["data"];
-      if (data == null) data = [];
-
-      List<Map<String, dynamic>> flatList = [];
-      if (data is List) {
-        for (var item in data) {
-          final map = Map<String, dynamic>.from(item as Map);
-          final details = map["holidayDetails"] ?? map["HolidayDetails"];
-          if (details is List && details.isNotEmpty) {
-            for (var d in details) {
-              final detail = Map<String, dynamic>.from(d as Map);
-              flatList.add({
-                ...map,
-                "reason": detail["reason"] ?? map["reason"] ?? map["holidayName"] ?? "",
-                "holiday_On": detail["holiday_On"] ?? detail["holidayOn"] ?? map["holiday_On"] ?? map["holidayOn"] ?? "",
-                "holidayDetailId": detail["holidayDetailId"] ?? detail["holidayDetail_ID"],
-              });
-            }
-          } else {
-            flatList.add(map);
-          }
-        }
-      }
-      if (mounted) {
-        setState(() {
-          holidays = flatList;
-          isLoading = false;
-        });
-      }
-    } else {
-      if (mounted) setState(() => isLoading = false);
-      debugPrint("Holiday API Error: ${response.body}");
-    }
-  }
-
-  Future<void> fetchHolidays() async {
-    final instituteId = await MySharedPreferences.instance.getStringValue("instituteId") ?? "10085";
-    await fetchHolidaysFromApi(instituteId);
-  }
+  // Future<void> fetchHolidays() async {
+  //   final instituteId = await MySharedPreferences.instance.getStringValue("instituteId") ?? "10085";
+  //   await fetchHolidaysFromApi(instituteId);
+  // }
 
   int _getHolidayId(Map<String, dynamic> holiday) {
     dynamic id = holiday["holiday_ID"] ?? holiday["holidayID"] ?? holiday["holidayId"] ??
@@ -144,7 +179,7 @@ class _EmployeeHolidayScreenState extends State<EmployeeHolidayScreen> {
     final instituteId = int.tryParse(
       await MySharedPreferences.instance.getStringValue("instituteId") ?? "10085",
     ) ?? 10085;
-    final url = Uri.parse(baseUrl);
+    final url = Uri.parse("${ApiUrls.baseUrl}Holiday/CreateHoliday");
 
     final body = {
       "holidayForMonthDate":
@@ -166,7 +201,7 @@ class _EmployeeHolidayScreenState extends State<EmployeeHolidayScreen> {
     );
 
     if (response.statusCode == 200 || response.statusCode == 201) {
-      await fetchHolidays();
+      await fetchHolidaysFromCalendar();
       return true;
     }
     debugPrint("Failed: ${response.body}");
@@ -186,7 +221,7 @@ class _EmployeeHolidayScreenState extends State<EmployeeHolidayScreen> {
       return false;
     }
 
-    final url = Uri.parse(baseUrl);
+    final url = Uri.parse("${ApiUrls.baseUrl}Holiday/CreateHoliday");
 
     final int holidayId = _getHolidayId(holiday);
     final int holidayDetailId = holiday["holidayDetailId"] as int? ?? 0;
@@ -227,7 +262,7 @@ class _EmployeeHolidayScreenState extends State<EmployeeHolidayScreen> {
       debugPrint("Update response body: ${response.body}");
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        await fetchHolidays();
+        await fetchHolidaysFromCalendar();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -492,74 +527,155 @@ class _EmployeeHolidayScreenState extends State<EmployeeHolidayScreen> {
       //     )
       //   ],
       // ),
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : holidays.isEmpty
-              ? RefreshIndicator(
-                  onRefresh: _loadHolidays,
-                  child: SingleChildScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    child: SizedBox(
-                      height: MediaQuery.of(context).size.height * 0.5,
-                      child: const Center(child: Text("No holidays found")),
-                    ),
-                  ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _loadHolidays,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.only(left: 14, right: 14, top: 8, bottom: 80),
-                    itemCount: holidays.length,
-                    itemBuilder: (ctx, i) {
-                      final h = holidays[i];
-                      final reason = h["reason"] ?? h["holidayName"] ?? "";
-                      final rawDate = h["holiday_On"] ?? h["holidayOn"] ?? "";
-                      DateTime? parsedDate;
-                      if (rawDate.isNotEmpty) {
-                        try {
-                          parsedDate = DateFormat("dd-MM-yyyy").parse(rawDate);
-                        } catch (e) {
-                          parsedDate = DateTime.tryParse(rawDate);
-                        }
-                      }
+      body: FutureBuilder<HolidayListModel?>(
+      future: futureHolidays,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
 
-                      return Padding(
-                        padding: const EdgeInsets.only(top: 5),
-                        child: Card(
-                          child: ListTile(
-                            leading: const Icon(Icons.event),
-                            title: GestureDetector(
-                              onTap: () => showUpdateHolidayDialog(h),
-                              child: Text(
-                                reason.isEmpty ? "Holiday" : reason,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w500,
-                                  decoration: TextDecoration.underline,
-                                  decorationColor: Colors.grey,
-                                ),
-                              ),
-                            ),
-                            subtitle: Text(
-                              parsedDate != null
-                                  ? DateFormat("dd MMM yyyy").format(parsedDate)
-                                  : rawDate.isNotEmpty ? rawDate : "-",
-                            ),
-                            trailing: IconButton(
-                              icon: const Icon(Icons.edit),
-                              onPressed: () => showUpdateHolidayDialog(h),
-                            ),
-                            onLongPress: () => showUpdateHolidayDialog(h),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
+        if (snapshot.hasError || snapshot.data == null) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text("Failed to load holidays"),
+                const SizedBox(height: 10),
+                ElevatedButton(
+                  onPressed: _loadHolidays,
+                  child: const Text("Retry"),
                 ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: AppColors.blue,
-        onPressed: showAddHolidayDialog,
-        child: Icon(Icons.add, color: Colors.white, size: 35),
-      ),
+              ],
+            ),
+          );
+        }
+
+        final holidayModel = snapshot.data!;
+
+        if (!holidayModel.success || holidayModel.days.isEmpty) {
+          return const Center(child: Text("No holidays found"));
+        }
+
+        // Flatten all holidays from all days
+        final List<Holiday> allHolidays = [];
+        for (var day in holidayModel.days) {
+          allHolidays.addAll(day.holidays);
+        }
+
+        return RefreshIndicator(
+          onRefresh: _loadHolidays,
+          child: ListView.builder(
+            padding: const EdgeInsets.all(12),
+            itemCount: allHolidays.length,
+            itemBuilder: (context, index) {
+              final holiday = allHolidays[index];
+
+              // Find the date for this holiday
+              DateTime? holidayDate;
+              for (var day in holidayModel.days) {
+                if (day.holidays.contains(holiday)) {
+                  holidayDate = day.date;
+                  break;
+                }
+              }
+              String holidayDateStr = DateFormat('dd-MM-yyyy').format(holidayDate!);
+              return Card(
+                color: AppColors.whiteColor,
+                margin: const EdgeInsets.only(bottom: 10),
+                child: Column(
+                  children: [
+
+                    Container(
+                      margin: EdgeInsets.all(5),
+                      decoration: BoxDecoration(
+                          border: Border.all(color: AppColors.colorcfcfcf,width: 1),
+                          color: AppColors.whiteColor,
+                          borderRadius: BorderRadius.circular(10),
+                          boxShadow: [
+                            BoxShadow(color: AppColors.colorcfcfcf,blurRadius: 2.0,offset: Offset(1.0, 0.0))
+                          ]
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        mainAxisAlignment: MainAxisAlignment.start,
+                        children: [
+
+                          Stack(
+                            alignment: Alignment.topRight,
+                            children: [
+
+                              Container(
+                                width: 100,
+                                height: 30,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.only(
+                                        topRight: Radius.circular(9)
+                                    ),
+                                    color: AppColors.blue
+                                ),
+                                child: CustomText.TextMedium(holidayDateStr,fontSize: 13.0,color: AppColors.whiteColor,textAlign: TextAlign.center),
+                              ),
+
+                              Container(
+                                padding: EdgeInsets.all(10),
+                                child: Row(
+                                  children: [
+
+                                    holiday.images.isNotEmpty ?
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(10),
+                                      child: Image.network(
+                                        holiday.images[0],
+                                        width: 80,
+                                        height: 80,
+                                        fit: BoxFit.cover,
+                                      ),
+                                    ) : Container(width: 80,height: 80,child: Icon(Icons.image, color: Colors.grey,size: 80,),),
+
+                                    const SizedBox(width: 10,),
+
+                                    CustomText.TextSemiBold(holiday.reason,color: AppColors.blackColor),
+
+
+                                  ],
+                                ),
+                              )
+
+                            ],
+                          )
+                        ],
+                      ),
+                    )
+
+                  ],
+                ),
+                // child: ListTile(
+                //   leading: const Icon(Icons.event, color: Colors.orange),
+                //   title: Text(
+                //     holiday.reason.isNotEmpty ? holiday.reason : "Holiday",
+                //     style: const TextStyle(fontWeight: FontWeight.w500),
+                //   ),
+                //   subtitle: Text(
+                //     holidayDate != null
+                //         ? DateFormat("dd MMM yyyy").format(holidayDate)
+                //         : "No date",
+                //   ),
+                //   trailing: holiday.images.isNotEmpty
+                //       ? const Icon(Icons.image, color: Colors.grey)
+                //       : null,
+                // ),
+              );
+            },
+          ),
+        );
+      },
+    ),
+      // floatingActionButton: FloatingActionButton(
+      //   backgroundColor: AppColors.blue,
+      //   onPressed: showAddHolidayDialog,
+      //   child: Icon(Icons.add, color: Colors.white, size: 35),
+      // ),
     );
   }
 }
