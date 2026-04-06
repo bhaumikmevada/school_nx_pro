@@ -85,7 +85,8 @@ class _EmployeeHolidayScreenState extends State<EmployeeHolidayScreen> {
       );
 
       final response = await http.get(url);
-
+      debugPrint("Holiday Calendar API URL : $url");
+      debugPrint("Holiday Calendar API Response : ${response.body}");
       if (response.statusCode == 200) {
         final holidayListModel = holidayListModelFromJson(response.body);
         return holidayListModel;

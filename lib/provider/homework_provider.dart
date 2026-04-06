@@ -69,7 +69,7 @@ class HomeworkProvider extends ChangeNotifier {
         filePath: attachmentPath,
       );
 
-      log(response.toString(), name: "response addHomework");
+      // log(response.toString(), name: "response addHomework");
 
       if (response?['statusCode'] == 200) {
         scaffoldMessage(message: "Homework Added Successfully!");
@@ -79,7 +79,7 @@ class HomeworkProvider extends ChangeNotifier {
         return {};
       }
 
-      scaffoldMessage(message: "Something went wrong");
+      // scaffoldMessage(message: "Something went wrong");
       return null;
     } catch (e, stacktrace) {
       log("Error: $e", name: "addHomework");

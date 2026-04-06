@@ -34,8 +34,9 @@ class _ParentResultScreenState extends State<ParentResultScreen> {
   // Helper method to get instituteId from SharedPreferences or children data
   Future<String?> _getInstituteId() async {
     // First try to get from SharedPreferences
-    String? instituteId = await MySharedPreferences.instance.getStringValue('instituteId');
-    
+    String? instituteId = await MySharedPreferences.instance.getStringValue('instituteId') ?? "10085";
+    debugPrint("result _getInstituteId : ${instituteId}");
+
     // If not found, try to get from children data
     if (instituteId == null || instituteId.isEmpty) {
       String? childrenListJson = await MySharedPreferences.instance.getStringValue('childrenList');
@@ -75,7 +76,8 @@ class _ParentResultScreenState extends State<ParentResultScreen> {
 
   Future<void> fetchTermList() async {
     String? instituteId = await _getInstituteId();
-    
+    debugPrint("fetchTermList instituteId : $instituteId");
+
     if (instituteId == null || instituteId.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(

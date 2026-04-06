@@ -120,6 +120,8 @@ class AuthProvider extends ChangeNotifier {
                 employeeDashboards.first as Map<String, dynamic>;
             final institutesData = employeeDashboard['institutes'];
             if (institutesData is List) {
+              debugPrint("institutes Data : $institutesData");
+
               institutes = List<dynamic>.from(institutesData);
               instituteNames = institutes
                   .map((e) => e['instituteName'].toString())

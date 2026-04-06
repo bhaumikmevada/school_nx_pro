@@ -51,6 +51,7 @@ class _HomeworkScreenState extends State<HomeworkScreen> {
   Future<void> _initAndLoadHomework() async {
     final studentId =
         await MySharedPreferences.instance.getStringValue("studentId") ?? '';
+    debugPrint("init homeScreen student Id : $studentId");
     if (studentId.isNotEmpty) {
       if (!mounted) return;
       final provider =
@@ -473,17 +474,17 @@ class _HomeworkScreenState extends State<HomeworkScreen> {
                       });
                     }
 
-                    if (!mounted) return;
+                    // if (!mounted) return;
                     Navigator.of(context).pop(); // close dialog only; stay on HomeworkScreen so list shows new item
 
-                    final message = isOnline && apiResponse != null
-                        ? "Homework added and synced successfully!"
-                        : isOnline
-                            ? "Homework saved locally. Sync failed, will retry automatically."
-                            : "Homework saved locally. Will sync when online.";
-                    
+                    // final message = isOnline && apiResponse != null
+                    //     ? "Homework added and synced successfully!"
+                    //     : isOnline
+                    //         ? "Homework saved locally. Sync failed, will retry automatically."
+                    //         : "Homework saved locally. Will sync when online.";
+                    //
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(message)),
+                      SnackBar(content: Text("Homework added successfully")),
                     );
                   },
                   child: const Text("Save"),

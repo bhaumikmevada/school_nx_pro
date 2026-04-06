@@ -31,5 +31,6 @@ class ApiUrls {
   static const stream = 'stream';
   static const substream = 'substream';
   static const studentInCSMSS = 'studentInCSMSS/Students';
-  static const submitAttandancewithCSMSS = 'submitAttandancewithCSMSS';
+  // static const submitAttandancewithCSMSS = 'submitAttandancewithCSMSS';
+  static const submitAttandancewithCSMSS = 'SubmitAttendance';
 }

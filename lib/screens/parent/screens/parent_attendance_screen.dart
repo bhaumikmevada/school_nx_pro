@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
+import 'package:school_nx_pro/utils/api_urls.dart';
 import 'package:school_nx_pro/utils/enum.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:school_nx_pro/provider/employee_attendance_provider.dart';
@@ -70,7 +71,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     final month = selectedMonth.month;
 
     final url = Uri.parse(
-      'https://api.schoolnxpro.com/api/StudentAttandancewithCalender/attendance/student/${widget.studentId}/summary'
+      '${ApiUrls.baseUrl}StudentAttandancewithCalender/attendance/student/${widget.studentId}/summary'
           '?courseId=$selectedCourseIds'
           '&sectionId=$selectedSectionIds'
           '&mediumId=$selectedMediumIds'

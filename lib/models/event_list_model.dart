@@ -58,21 +58,37 @@ class Day {
 }
 
 class Event {
+  int eventId;
   String eventName;
+  String eventDate;
+  int courseId;
+  String courseName;
   List<String> images;
 
   Event({
+    required this.eventId,
     required this.eventName,
+    required this.eventDate,
+    required this.courseId,
+    required this.courseName,
     required this.images,
   });
 
   factory Event.fromJson(Map<String, dynamic> json) => Event(
+    eventId: json["eventId"],
     eventName: json["eventName"],
+    eventDate: json["eventDate"],
+    courseId: json["courseId"],
+    courseName: json["courseName"],
     images: List<String>.from(json["images"].map((x) => x)),
   );
 
   Map<String, dynamic> toJson() => {
+    "eventId": eventId,
     "eventName": eventName,
+    "eventDate": eventDate,
+    "courseId": courseId,
+    "courseName": courseName,
     "images": List<dynamic>.from(images.map((x) => x)),
   };
 }

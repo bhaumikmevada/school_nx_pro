@@ -839,7 +839,7 @@ class _EmployeeAttendanceScreenState extends State<EmployeeAttendanceScreen> {
     }
 
     final dateKey = _formatDate(selectedDate);
-    
+    final isoDate = "${_formatDate(selectedDate)}T00:00:00.000Z";
     // Only submit attendance for selected date
     // Default all students to Present, only mark Absent if explicitly set
     List<Map<String, dynamic>> attendanceData = provider.studentList.map((student) {
@@ -850,6 +850,7 @@ class _EmployeeAttendanceScreenState extends State<EmployeeAttendanceScreen> {
       return {
         "studentId": student.admissionId,
         "status": isPresent ? "Present" : "Absent",
+        "dates": [isoDate]
       };
     }).toList();
 
@@ -865,7 +866,7 @@ class _EmployeeAttendanceScreenState extends State<EmployeeAttendanceScreen> {
 
     _saveAttendanceLocally();
 
-    Utils.toastMessage("Attendance submitted successfully for ${_formatDisplayDate(selectedDate)}!");
+    // Utils.toastMessage("Attendance submitted successfully for ${_formatDisplayDate(selectedDate)}!");
     
     setState(() {}); // Refresh UI
   }

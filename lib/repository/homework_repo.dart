@@ -1,10 +1,13 @@
 import 'dart:convert';
 import 'dart:developer';
+import 'package:flutter/widgets.dart';
 import 'package:intl/intl.dart';
 import 'package:school_nx_pro/repository/base_repo.dart';
 import 'package:school_nx_pro/utils/api_urls.dart';
 import 'package:school_nx_pro/utils/my_sharepreferences.dart';
 import 'package:http/http.dart' as http;
+
+import '../components/scaffold_message.dart';
 
 class HomeworkRepo extends BaseRepository {
   Future getHomeworkApi(String id) async {
@@ -48,6 +51,8 @@ class HomeworkRepo extends BaseRepository {
 
     String? instituteUserId = await MySharedPreferences.instance
         .getStringValue("createdByInstituteUserId");
+
+    debugPrint("instituteUserId : $instituteUserId");
 
     var uri = Uri.parse(ApiUrls.baseUrl + ApiUrls.addHomework);
     var request = http.MultipartRequest('POST', uri);
@@ -93,7 +98,7 @@ class HomeworkRepo extends BaseRepository {
 
       log("Response Status: ${response.statusCode}", name: "addHomeworkAPI");
       log("Response Body: ${response.body}", name: "addHomeworkAPI");
-
+      scaffoldMessage(message: "Homework Added Successfully!");
       if (response.statusCode == 200) {
         return json.decode(response.body);
       } else {

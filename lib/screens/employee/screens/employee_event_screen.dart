@@ -40,7 +40,7 @@ class LocalImageStorage {
         jsonDecode(prefs.getString(key) ?? "{}");
 
     List<String> images = List<String>.from(map[eventId.toString()] ?? []);
-    
+
     // Avoid duplicates
     if (!images.contains(pathOrUrl)) {
       images.add(pathOrUrl);
@@ -168,12 +168,16 @@ class EventModel {
   final int eventId;
   final String eventName;
   final DateTime eventDate;
-  final List<String> images;
+  final int courseId;
+  final String courseName;
+  List<String> images = [];
 
   EventModel({
     required this.eventId,
     required this.eventName,
     required this.eventDate,
+    required this.courseId,
+    required this.courseName,
     required this.images,
   });
 
@@ -182,12 +186,16 @@ class EventModel {
     int? eventId,
     String? eventName,
     DateTime? eventDate,
+    int? courseId,
+    String? courseName,
     List<String>? images,
   }) {
     return EventModel(
       eventId: eventId ?? this.eventId,
       eventName: eventName ?? this.eventName,
       eventDate: eventDate ?? this.eventDate,
+      courseId: courseId ?? this.courseId,
+      courseName: courseName ?? this.courseName,
       images: images ?? List<String>.from(this.images),
     );
   }
@@ -196,7 +204,9 @@ class EventModel {
     return EventModel(
       eventId: json['eventId'],
       eventName: json['eventName'],
-      eventDate: DateTime.parse(json['eventDate']),
+      eventDate: json['eventDate'],
+      courseId: json['courseId'],
+      courseName: json['courseName'],
       images: List<String>.from(json['images'] ?? []),
     );
   }
@@ -220,7 +230,7 @@ class EventService {
 
   static Future<List<EventModel>> fetchEvents() async {
     final client = HttpClientManager.instance.getClient();
-    
+
     // Get instituteId dynamically
     String? instituteId;
     try {
@@ -228,11 +238,11 @@ class EventService {
     } catch (e) {
       print("⚠️ Could not get instituteId: $e");
     }
-    
+
     if (instituteId == null || instituteId.isEmpty) {
       instituteId = "10085"; // Fallback
     }
-    
+
     final response = await client.get(
       // Uri.parse("${ApiUrls.baseUrl}/EventWithImages?instituteId=$instituteId"),
       Uri.parse("${ApiUrls.baseUrl}/EventWithImages?instituteId=$instituteId"),
@@ -260,21 +270,23 @@ class EventService {
     // 🔹 Get local events (events created locally but not yet synced to API)
     final localEvents = await LocalEventStorage.getAllEvents();
     final localEventIds = <int>{};
-    
+
     for (var localEvent in localEvents) {
       final eventId = localEvent['eventId'] as int;
       localEventIds.add(eventId);
-      
+
       // Check if this event already exists in server events
       final existsInServer = eventList.any((e) => e.eventId == eventId);
-      
+
       if (!existsInServer) {
         // Add local event to list
         eventList.add(EventModel(
           eventId: eventId,
           eventName: localEvent['eventName'] as String,
-          eventDate: DateTime.parse(localEvent['eventDate'] as String),
-          images: localEvent['imageUrl'] != null 
+          eventDate: localEvent['eventDate'],
+          courseId: localEvent['courseId'],
+          courseName: localEvent['courseName'],
+          images: localEvent['imageUrl'] != null
               ? [localEvent['imageUrl'] as String]
               : [],
         ));
@@ -313,16 +325,16 @@ class EventService {
         print("⚠️ Could not get instituteId for verification: $e");
         instituteId = "10085"; // Fallback to default
       }
-      
+
       if (instituteId == null || instituteId.isEmpty) {
         instituteId = "10085"; // Fallback to default
       }
-      
+
       // Wait longer for backend to process and link the image to the event
       // Backend may need time to process the upload and update the database
       print("🔍 Starting verification after 5 second delay...");
       await Future.delayed(const Duration(seconds: 5));
-      
+
       final client = HttpClientManager.instance.getClient();
       final verificationUrl = "https://api.schoolnxpro.com/api/EventWithImages?instituteId=$instituteId";
       print("🔍 Verification: Fetching from $verificationUrl");
@@ -330,32 +342,32 @@ class EventService {
         Uri.parse(verificationUrl),
         headers: {'Content-Type': 'application/json'},
       );
-      
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final events = data['data'] as List;
-        
+
         // Find our event
         final event = events.firstWhere(
           (e) => e['eventId'] == eventId,
           orElse: () => null,
         );
-        
+
         if (event != null) {
           final images = List<String>.from(event['images'] ?? []);
           print("🔍 Verification: Event $eventId has ${images.length} images in API");
           print("🔍 Verification: Images in API: $images");
-          
+
           if (serverUrl != null && serverUrl.isNotEmpty) {
             // Check if server URL matches any image in the API
-            final found = images.any((img) => 
-              img.contains(serverUrl) || 
+            final found = images.any((img) =>
+              img.contains(serverUrl) ||
               serverUrl.contains(img) ||
               img.endsWith(serverUrl.split('/').last) ||
               serverUrl.endsWith(img.split('/').last) ||
               (filename != null && img.contains(filename))
             );
-            
+
             if (found) {
               print("✅ VERIFIED: Server URL found in EventWithImages API");
               print("✅ Server URL: $serverUrl");
@@ -365,19 +377,19 @@ class EventService {
               print("⚠️ Server URL: $serverUrl");
               print("⚠️ Filename: $filename");
               print("⚠️ API Images: $images");
-              
+
               // Try multiple retries after additional delays
               print("🔄 Retrying verification after additional delay...");
               for (int retryAttempt = 1; retryAttempt <= 3; retryAttempt++) {
                 await Future.delayed(Duration(seconds: 3 * retryAttempt)); // Progressive delay: 3s, 6s, 9s
                 print("🔄 Retry attempt $retryAttempt/3...");
-                
+
                 // Re-fetch to check again
                 final retryResponse = await client.get(
                   Uri.parse("https://api.schoolnxpro.com/api/EventWithImages?instituteId=$instituteId"),
                   headers: {'Content-Type': 'application/json'},
                 );
-              
+
                 if (retryResponse.statusCode == 200) {
                   final retryData = json.decode(retryResponse.body);
                   final retryEvents = retryData['data'] as List;
@@ -385,20 +397,20 @@ class EventService {
                     (e) => e['eventId'] == eventId,
                     orElse: () => null,
                   );
-                  
+
                   if (retryEvent != null) {
                     final retryImages = List<String>.from(retryEvent['images'] ?? []);
                     print("🔍 Retry: Event $eventId now has ${retryImages.length} images");
                     print("🔍 Retry: Images: $retryImages");
-                    
-                    final retryFound = retryImages.any((img) => 
-                      img.contains(serverUrl) || 
+
+                    final retryFound = retryImages.any((img) =>
+                      img.contains(serverUrl) ||
                       serverUrl.contains(img) ||
                       img.endsWith(serverUrl.split('/').last) ||
                       serverUrl.endsWith(img.split('/').last) ||
                       (filename != null && img.contains(filename))
                     );
-                    
+
                     if (retryFound) {
                       print("✅ VERIFIED on retry $retryAttempt: Server URL found in EventWithImages API");
                       return true;
@@ -406,7 +418,7 @@ class EventService {
                   }
                 }
               }
-              
+
               return false;
             }
           } else if (filename != null) {
@@ -421,32 +433,32 @@ class EventService {
               // 3. Extract filename from URL and compare
               final urlFilename = img.split('/').last;
               final urlMatches = urlFilename == filename || urlFilename.contains(filename) || filename.contains(urlFilename);
-              
+
               if (exactMatch || endsWithMatch || urlMatches) {
                 print("✅ Filename match found: $img (matches $filename)");
               }
               return exactMatch || endsWithMatch || urlMatches;
             });
-            
+
             if (found) {
               print("✅ VERIFIED: Filename found in EventWithImages API");
               return true;
             }
-            
+
             print("⚠️ Filename not found in API images");
             print("⚠️ Searched filename: $filename");
             print("⚠️ API images: $images");
-            
+
             // Retry with filename search too
             for (int retryAttempt = 1; retryAttempt <= 3; retryAttempt++) {
               await Future.delayed(Duration(seconds: 3 * retryAttempt));
               print("🔄 Retrying filename verification (attempt $retryAttempt/3)...");
-              
+
               final retryResponse = await client.get(
                 Uri.parse("https://api.schoolnxpro.com/api/EventWithImages?instituteId=$instituteId"),
                 headers: {'Content-Type': 'application/json'},
               );
-              
+
               if (retryResponse.statusCode == 200) {
                 final retryData = json.decode(retryResponse.body);
                 final retryEvents = retryData['data'] as List;
@@ -454,18 +466,18 @@ class EventService {
                   (e) => e['eventId'] == eventId,
                   orElse: () => null,
                 );
-                
+
                 if (retryEvent != null) {
                   final retryImages = List<String>.from(retryEvent['images'] ?? []);
                   print("🔍 Retry $retryAttempt: Event $eventId now has ${retryImages.length} images");
-                  
+
                   final retryFound = retryImages.any((img) {
-                    return img.contains(filename) || 
-                           img.endsWith(filename) || 
+                    return img.contains(filename) ||
+                           img.endsWith(filename) ||
                            img.split('/').last == filename ||
                            img.split('/').last.contains(filename);
                   });
-                  
+
                   if (retryFound) {
                     print("✅ VERIFIED on retry $retryAttempt: Filename found in EventWithImages API");
                     return true;
@@ -473,7 +485,7 @@ class EventService {
                 }
               }
             }
-            
+
             return false;
           } else {
             // If no server URL or filename, check if event has any images
@@ -504,32 +516,32 @@ class EventService {
       } catch (e) {
         print("⚠️ Could not get instituteId: $e");
       }
-      
+
       if (instituteId == null || instituteId.isEmpty) {
         instituteId = "10085"; // Fallback
       }
-      
+
       final client = HttpClientManager.instance.getClient();
       final url = Uri.parse("https://api.schoolnxpro.com/api/Section?instituteId=$instituteId");
       final response = await client.get(
         url,
         headers: {'Content-Type': 'application/json'},
       );
-      
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         List<Map<String, dynamic>> sections = [];
-        
+
         // Handle different response formats
         if (data is List) {
           sections = List<Map<String, dynamic>>.from(data);
         } else if (data is Map && data['data'] != null) {
           sections = List<Map<String, dynamic>>.from(data['data']);
         }
-        
+
         // Build full allotment name for display if not present
         for (var section in sections) {
-          if (!section.containsKey('fullAllotmentName') || 
+          if (!section.containsKey('fullAllotmentName') ||
               section['fullAllotmentName'] == null) {
             // Try to build from available fields
             final sectionId = section['sectionId'] ?? '';
@@ -538,7 +550,7 @@ class EventService {
             final mediumName = section['mediumName'] ?? '';
             final streamName = section['streamName'] ?? '';
             final subStreamName = section['subStreamName'] ?? '';
-            
+
             // Build full name like "01/A/English/Common/Common"
             final parts = [
               sectionId.toString(),
@@ -548,11 +560,11 @@ class EventService {
               streamName.isNotEmpty ? streamName : 'Common',
               subStreamName.isNotEmpty ? subStreamName : '',
             ].where((p) => p.isNotEmpty).toList();
-            
+
             section['fullAllotmentName'] = parts.join('/');
           }
         }
-        
+
         return sections;
       }
       return [];
@@ -577,7 +589,7 @@ class EventService {
       } catch (e) {
         print("⚠️ Could not get auth token: $e");
       }
-      
+
       // Get instituteId for URL construction
       String? instituteId;
       try {
@@ -585,7 +597,7 @@ class EventService {
       } catch (e) {
         print("⚠️ Could not get instituteId: $e");
       }
-      
+
       // Try to get studentId if available (may help backend link image to student)
       String? studentId;
       try {
@@ -596,7 +608,7 @@ class EventService {
       } catch (e) {
         print("⚠️ Could not get studentId: $e (this is optional for employee uploads)");
       }
-      
+
       // Generate unique description by adding timestamp and random number to avoid duplicate upload issues
       // Format: "event_name_timestamp_random" (e.g., "Annual Day_170709521386859663_12345")
       // This ensures each upload has a completely unique description
@@ -604,25 +616,25 @@ class EventService {
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final random = Random().nextInt(99999); // Random number between 0-99999
       final uniqueDescription = "${description}_${timestamp}_$random";
-      
+
       // API requires query parameters (form fields don't work - returns "description field is required")
       final encodedDescription = Uri.encodeComponent(uniqueDescription);
-      
+
       // Build URL with gallery upload parameters (NO eventId - this is the key difference)
       String uploadUrl = "https://api.schoolnxpro.com/api/FileUploadDownload1/UploadPhoto"
           "?description=$encodedDescription&employeeId=$employeeId&sectionId=$sectionId";
-      
+
       // Add instituteId to query params if available
       if (instituteId != null && instituteId.isNotEmpty) {
         uploadUrl += "&instituteId=$instituteId";
       }
-      
+
       // Add studentId to query params if available (may help backend link image to student's ID)
       if (studentId != null && studentId.isNotEmpty) {
         uploadUrl += "&studentId=$studentId";
         print("✅ Including studentId in upload URL: $studentId");
       }
-      
+
       // Add eventName and eventDate if provided (helps backend create event automatically)
       if (eventName != null && eventName.isNotEmpty) {
         uploadUrl += "&eventName=${Uri.encodeComponent(eventName)}";
@@ -632,16 +644,16 @@ class EventService {
         uploadUrl += "&eventDate=${Uri.encodeComponent(eventDate)}";
         print("✅ Including eventDate in upload URL: $eventDate");
       }
-      
+
       final url = Uri.parse(uploadUrl);
 
       var request = http.MultipartRequest("POST", url);
-      
+
       // Verify file exists and is readable
       if (!await file.exists()) {
         throw Exception("File does not exist: ${file.path}");
       }
-      
+
       // Get file extension and determine content type
       final fileExtension = file.path.split('.').last.toLowerCase();
       String contentType = 'image/jpeg'; // default
@@ -654,13 +666,13 @@ class EventService {
       } else if (fileExtension == 'webp') {
         contentType = 'image/webp';
       }
-      
+
       // Get filename from path
       final filename = file.path.split('/').last;
-      
+
       // Read file bytes to create MultipartFile with explicit content type
       final fileBytes = await file.readAsBytes();
-      
+
       // Create multipart file with explicit content type and filename
       final multipartFile = http.MultipartFile.fromBytes(
         "file", // Field name - API expects "file"
@@ -668,7 +680,7 @@ class EventService {
         filename: filename,
         contentType: MediaType.parse(contentType),
       );
-      
+
       // Add the file to the request body
       request.files.add(multipartFile);
 
@@ -708,16 +720,16 @@ class EventService {
       if (response.statusCode == 200 || response.statusCode == 201) {
         try {
           final jsonResponse = json.decode(response.body);
-          
+
           // Extract server URL from response if available
           String? serverUrl;
           if (jsonResponse is Map) {
-            serverUrl = jsonResponse['url'] ?? 
-                       jsonResponse['imageUrl'] ?? 
-                       jsonResponse['fileUrl'] ?? 
+            serverUrl = jsonResponse['url'] ??
+                       jsonResponse['imageUrl'] ??
+                       jsonResponse['fileUrl'] ??
                        jsonResponse['image'] ??
                        (jsonResponse['data'] is Map ? jsonResponse['data']['url'] : null);
-            
+
             // If no URL but we have filename, try to construct a server URL
             // Note: Without eventId, we can't construct the exact EventWithImages URL
             // The backend should return the proper URL or we'll use the filename
@@ -729,10 +741,10 @@ class EventService {
               print("ℹ️ Server URL will be determined by backend or EventWithImages API");
             }
           }
-          
+
           print("✅ Gallery upload successful! Server URL: ${serverUrl ?? 'Will be available in EventWithImages API'}");
           print("📋 Full response: $jsonResponse");
-          
+
           return {
             'success': true,
             'data': jsonResponse,
@@ -754,14 +766,14 @@ class EventService {
         String errorMessage = 'Failed to upload image to gallery';
         try {
           final errorJson = json.decode(response.body);
-          errorMessage = errorJson['message'] ?? 
-                        errorJson['error'] ?? 
-                        errorJson['Message'] ?? 
-                        errorJson['Error'] ?? 
+          errorMessage = errorJson['message'] ??
+                        errorJson['error'] ??
+                        errorJson['Message'] ??
+                        errorJson['Error'] ??
                         response.body;
         } catch (e) {
-          errorMessage = response.body.isNotEmpty 
-              ? response.body 
+          errorMessage = response.body.isNotEmpty
+              ? response.body
               : 'HTTP ${response.statusCode}: ${response.reasonPhrase}';
         }
 
@@ -794,7 +806,7 @@ class EventService {
       } catch (e) {
         print("⚠️ Could not get auth token: $e");
       }
-      
+
       // Get instituteId for URL construction
       String? instituteId;
       try {
@@ -802,28 +814,28 @@ class EventService {
       } catch (e) {
         print("⚠️ Could not get instituteId: $e");
       }
-      
+
       // API requires query parameters (form fields don't work - returns "description field is required")
       final encodedDescription = Uri.encodeComponent(description);
-      
+
       // Build URL with all required parameters, including instituteId if available
       String uploadUrl = "https://api.schoolnxpro.com/api/FileUploadDownload1/UploadPhoto"
           "?description=$encodedDescription&employeeId=$employeeId&sectionId=$sectionId&eventId=$eventId";
-      
+
       // Add instituteId to query params if available (may help backend link image to event properly)
       if (instituteId != null && instituteId.isNotEmpty) {
         uploadUrl += "&instituteId=$instituteId";
       }
-      
+
       final url = Uri.parse(uploadUrl);
 
       var request = http.MultipartRequest("POST", url);
-      
+
       // Verify file exists and is readable
       if (!await file.exists()) {
         throw Exception("File does not exist: ${file.path}");
       }
-      
+
       // Get file extension and determine content type
       final fileExtension = file.path.split('.').last.toLowerCase();
       String contentType = 'image/jpeg'; // default
@@ -836,14 +848,14 @@ class EventService {
       } else if (fileExtension == 'webp') {
         contentType = 'image/webp';
       }
-      
+
       // Get filename from path
       final filename = file.path.split('/').last;
-      
+
       // Read file bytes to create MultipartFile with explicit content type
       // This ensures the file is properly included in the request body as multipart/form-data
       final fileBytes = await file.readAsBytes();
-      
+
       // Create multipart file with explicit content type and filename
       // This matches Postman's multipart/form-data behavior
       final multipartFile = http.MultipartFile.fromBytes(
@@ -852,10 +864,10 @@ class EventService {
         filename: filename,
         contentType: MediaType.parse(contentType),
       );
-      
+
       // Add the file to the request body
       request.files.add(multipartFile);
-      
+
       print("📎 File details: path=${file.path}, filename=$filename, contentType=$contentType, size=${fileBytes.length} bytes");
       print("📎 Multipart file field name: ${multipartFile.field}");
       print("📎 Multipart file filename: ${multipartFile.filename}");
@@ -899,17 +911,17 @@ class EventService {
       if (response.statusCode == 200 || response.statusCode == 201) {
         try {
           final jsonResponse = json.decode(response.body);
-          
+
           // Extract server URL from response if available
           // API might return URL in various formats: url, imageUrl, fileUrl, data.url, etc.
           String? serverUrl;
           if (jsonResponse is Map) {
-            serverUrl = jsonResponse['url'] ?? 
-                       jsonResponse['imageUrl'] ?? 
-                       jsonResponse['fileUrl'] ?? 
+            serverUrl = jsonResponse['url'] ??
+                       jsonResponse['imageUrl'] ??
+                       jsonResponse['fileUrl'] ??
                        jsonResponse['image'] ??
                        (jsonResponse['data'] is Map ? jsonResponse['data']['url'] : null);
-            
+
             // If no URL but we have filename, construct the server URL
             // Based on the response: {"status":"success","message":"Photo uploaded successfully.","filename":"70091_40130_639021784774251121.jpg","description":"do"}
             if (serverUrl == null && jsonResponse['filename'] != null) {
@@ -926,10 +938,10 @@ class EventService {
               }
             }
           }
-          
+
           print("✅ Upload successful! Server URL: ${serverUrl ?? 'Not provided in response'}");
           print("📋 Full response: $jsonResponse");
-          
+
           return {
             'success': true,
             'data': jsonResponse,
@@ -951,14 +963,14 @@ class EventService {
         String errorMessage = 'Failed to upload image';
         try {
           final errorJson = json.decode(response.body);
-          errorMessage = errorJson['message'] ?? 
-                        errorJson['error'] ?? 
-                        errorJson['Message'] ?? 
-                        errorJson['Error'] ?? 
+          errorMessage = errorJson['message'] ??
+                        errorJson['error'] ??
+                        errorJson['Message'] ??
+                        errorJson['Error'] ??
                         response.body;
         } catch (e) {
-          errorMessage = response.body.isNotEmpty 
-              ? response.body 
+          errorMessage = response.body.isNotEmpty
+              ? response.body
               : 'HTTP ${response.statusCode}: ${response.reasonPhrase}';
         }
 
@@ -990,7 +1002,7 @@ class EventService {
       } catch (e) {
         print("⚠️ Could not get auth token: $e");
       }
-      
+
       // Build the URL (without query parameters - we'll use form fields)
       final url = Uri.parse(
         "https://api.schoolnxpro.com/api/FileUploadDownload1/UploadPhoto",
@@ -1003,7 +1015,7 @@ class EventService {
       request.fields['employeeId'] = employeeId.toString();
       request.fields['sectionId'] = sectionId.toString();
       request.fields['eventId'] = eventId.toString();
-      
+
       // Try to get additional fields
       try {
         String? instituteId = await MySharedPreferences.instance.getStringValue("instituteId");
@@ -1018,10 +1030,10 @@ class EventService {
       if (!await file.exists()) {
         throw Exception("File does not exist: ${file.path}");
       }
-      
+
       // Get filename from path
       final filename = file.path.split('/').last;
-      
+
       // Add the file with the specified field name
       request.files.add(
         await http.MultipartFile.fromPath(
@@ -1053,7 +1065,7 @@ class EventService {
       if (response.statusCode == 200 || response.statusCode == 201) {
         try {
           final jsonResponse = json.decode(response.body);
-          
+
           String? serverUrl;
           String? instituteId;
           try {
@@ -1061,14 +1073,14 @@ class EventService {
           } catch (e) {
             // Ignore
           }
-          
+
           if (jsonResponse is Map) {
-            serverUrl = jsonResponse['url'] ?? 
-                       jsonResponse['imageUrl'] ?? 
-                       jsonResponse['fileUrl'] ?? 
+            serverUrl = jsonResponse['url'] ??
+                       jsonResponse['imageUrl'] ??
+                       jsonResponse['fileUrl'] ??
                        jsonResponse['image'] ??
                        (jsonResponse['data'] is Map ? jsonResponse['data']['url'] : null);
-            
+
             // If no URL but we have filename, construct the server URL
             if (serverUrl == null && jsonResponse['filename'] != null && instituteId != null) {
               final filename = jsonResponse['filename'] as String;
@@ -1076,7 +1088,7 @@ class EventService {
               print("🔗 Constructed server URL from filename: $serverUrl");
             }
           }
-          
+
           return {
             'success': true,
             'data': jsonResponse,
@@ -1098,14 +1110,14 @@ class EventService {
         String errorMessage = 'Failed to upload image';
         try {
           final errorJson = json.decode(response.body);
-          errorMessage = errorJson['message'] ?? 
-                        errorJson['error'] ?? 
-                        errorJson['Message'] ?? 
-                        errorJson['Error'] ?? 
+          errorMessage = errorJson['message'] ??
+                        errorJson['error'] ??
+                        errorJson['Message'] ??
+                        errorJson['Error'] ??
                         response.body;
         } catch (e) {
-          errorMessage = response.body.isNotEmpty 
-              ? response.body 
+          errorMessage = response.body.isNotEmpty
+              ? response.body
               : 'HTTP ${response.statusCode}: ${response.reasonPhrase}';
         }
 
@@ -1139,9 +1151,9 @@ class EventService {
       } catch (e) {
         print("⚠️ Could not get auth token: $e");
       }
-      
+
       final encodedDescription = Uri.encodeComponent(description);
-      
+
       final url = Uri.parse(
         "https://api.schoolnxpro.com/api/FileUploadDownload1/UploadPhoto"
         "?description=$encodedDescription&employeeId=$employeeId&sectionId=$sectionId&eventId=$eventId", // ✅ ADD eventId
@@ -1151,16 +1163,16 @@ class EventService {
       if (!await file.exists()) {
         throw Exception("File does not exist: ${file.path}");
       }
-      
+
       // Get filename from path
       final filename = file.path.split('/').last;
-      
+
       var request = http.MultipartRequest("POST", url);
-      
+
       // Add the file with explicit filename
       request.files.add(
         await http.MultipartFile.fromPath(
-          fieldName, 
+          fieldName,
           file.path,
           filename: filename, // Explicit filename
         ),
@@ -1188,7 +1200,7 @@ class EventService {
       if (response.statusCode == 200 || response.statusCode == 201) {
         try {
           final jsonResponse = json.decode(response.body);
-          
+
           // Extract server URL from response if available
           String? serverUrl;
           String? instituteId;
@@ -1197,14 +1209,14 @@ class EventService {
           } catch (e) {
             // Ignore
           }
-          
+
           if (jsonResponse is Map) {
-            serverUrl = jsonResponse['url'] ?? 
-                       jsonResponse['imageUrl'] ?? 
-                       jsonResponse['fileUrl'] ?? 
+            serverUrl = jsonResponse['url'] ??
+                       jsonResponse['imageUrl'] ??
+                       jsonResponse['fileUrl'] ??
                        jsonResponse['image'] ??
                        (jsonResponse['data'] is Map ? jsonResponse['data']['url'] : null);
-            
+
             // If no URL but we have filename, construct the server URL
             if (serverUrl == null && jsonResponse['filename'] != null && instituteId != null) {
               final responseFilename = jsonResponse['filename'] as String;
@@ -1212,7 +1224,7 @@ class EventService {
               print("🔗 Constructed server URL from filename: $serverUrl");
             }
           }
-          
+
           return {
             'success': true,
             'data': jsonResponse,
@@ -1234,14 +1246,14 @@ class EventService {
         String errorMessage = 'Failed to upload image';
         try {
           final errorJson = json.decode(response.body);
-          errorMessage = errorJson['message'] ?? 
-                        errorJson['error'] ?? 
-                        errorJson['Message'] ?? 
-                        errorJson['Error'] ?? 
+          errorMessage = errorJson['message'] ??
+                        errorJson['error'] ??
+                        errorJson['Message'] ??
+                        errorJson['Error'] ??
                         response.body;
         } catch (e) {
-          errorMessage = response.body.isNotEmpty 
-              ? response.body 
+          errorMessage = response.body.isNotEmpty
+              ? response.body
               : 'HTTP ${response.statusCode}: ${response.reasonPhrase}';
         }
 
@@ -1409,7 +1421,7 @@ class EventService {
       } catch (e) {
         print("⚠️ Could not get auth token: $e");
       }
-      
+
       // Get instituteId
       String? instituteId;
       try {
@@ -1417,7 +1429,7 @@ class EventService {
       } catch (e) {
         print("⚠️ Could not get instituteId: $e");
       }
-      
+
       if (instituteId == null || instituteId.isEmpty) {
         instituteId = "10085"; // Fallback
       }
@@ -1441,13 +1453,13 @@ class EventService {
         final random = Random().nextInt(99999);
         // Include event name and date in description - backend can parse this
         final uniqueDescription = "${eventName}|${formattedDate}|${timestamp}|$random";
-        
+
         print("📤 Uploading image with description: $uniqueDescription");
         print("📝 Event Name: $eventName");
         print("📅 Event Date: $formattedDate");
         print("📚 Section ID: $sectionId");
         print("👤 Employee ID: $employeeId");
-        
+
         final uploadResult = await uploadGalleryImage(
           imageFile,
           uniqueDescription, // Includes event name and date
@@ -1456,7 +1468,7 @@ class EventService {
           eventName: eventName, // Pass event name as separate parameter
           eventDate: formattedDate, // Pass event date as separate parameter
         );
-        
+
         if (uploadResult['success'] == true) {
           imageUrl = uploadResult['serverUrl'] as String?;
           filename = uploadResult['filename'] as String?;
@@ -1484,7 +1496,7 @@ class EventService {
       final client = HttpClientManager.instance.getClient();
       bool eventCreatedViaAPI = false;
       int? apiEventId;
-      
+
       // Try multiple approaches: JSON POST, Multipart POST, and query params
       List<Map<String, dynamic>> attempts = [
         // {
@@ -1505,7 +1517,7 @@ class EventService {
 
         },
       ];
-      
+
       for (var attempt in attempts) {
         final endpoint = attempt['endpoint'] as String;
         final method = attempt['method'] as String;
@@ -1524,7 +1536,7 @@ class EventService {
               if (imageUrl != null) 'imageUrl': imageUrl,
               if (filename != null) 'filename': filename,
             };
-            
+
             final response = await client.post(
               Uri.parse(endpoint),
               headers: {
@@ -1542,7 +1554,7 @@ class EventService {
               try {
                 final responseData = json.decode(response.body);
                 if (responseData is Map) {
-                  apiEventId = responseData['eventId'] ?? 
+                  apiEventId = responseData['eventId'] ??
                              responseData['data']?['eventId'] ??
                              responseData['id'];
                 }
@@ -1556,7 +1568,7 @@ class EventService {
             // Try Multipart POST (like homework upload)
             final uri = Uri.parse(endpoint);
             var request = http.MultipartRequest('POST', uri);
-            
+
             // Add form fields
             request.fields['eventName'] = eventName;
             request.fields['EventDate'] = formattedDate;
@@ -1566,27 +1578,27 @@ class EventService {
             request.fields['CourseId'] = courseId.toString();
             if (imageUrl != null) request.fields['File'] = imageUrl;
             if (filename != null) request.fields['filename'] = filename;
-            
+
             // Add headers
             request.headers.addAll({
               'Accept': 'application/json',
               if (accessToken != null) 'Authorization': 'Bearer $accessToken',
             });
-            
+
             print("📤 Creating event via multipart: $endpoint");
             print("📋 Event Data: ${request.fields}");
-            
+
             var streamedResponse = await client.send(request);
             var response = await http.Response.fromStream(streamedResponse);
-            
+
             print("📥 Create Event (Multipart) Response Status ($endpoint): ${response.statusCode}");
             print("📥 Create Event Response Body: ${response.body}");
-            
+
             if (response.statusCode == 200 || response.statusCode == 201) {
               try {
                 final responseData = json.decode(response.body);
                 if (responseData is Map) {
-                  apiEventId = responseData['eventId'] ?? 
+                  apiEventId = responseData['eventId'] ??
                              responseData['data']?['eventId'] ??
                              responseData['id'];
                 }
@@ -1602,7 +1614,7 @@ class EventService {
           continue;
         }
       }
-      
+
       // If JSON/Multipart didn't work, try with query parameters
       if (!eventCreatedViaAPI) {
         try {
@@ -1615,7 +1627,7 @@ class EventService {
             if (imageUrl != null) 'imageUrl': imageUrl,
             if (filename != null) 'filename': filename,
           };
-          
+
           // final uri = Uri.parse('https://api.schoolnxpro.com/api/Event/CreateEvent').replace(
           //   queryParameters: queryParams,
           // );
@@ -1627,16 +1639,16 @@ class EventService {
               if (accessToken != null) 'Authorization': 'Bearer $accessToken',
             },
           ).timeout(const Duration(seconds: 10));
-          
+
           print("📥 Create Event URL : https://api.schoolnxpro.com/api/Event/CreateEvent");
           print("📥 Create Event (Query Params) Response Status: ${response.statusCode}");
           print("📥 Create Event Response Body: ${response.body}");
-          
+
           if (response.statusCode == 200 || response.statusCode == 201) {
             try {
               final responseData = json.decode(response.body);
               if (responseData is Map) {
-                apiEventId = responseData['eventId'] ?? 
+                apiEventId = responseData['eventId'] ??
                            responseData['data']?['eventId'] ??
                            responseData['id'];
               }
@@ -1653,7 +1665,7 @@ class EventService {
       // Step 3: Save event locally (always save, even if API fails)
       // Use API eventId if available, otherwise use local generated ID
       final finalEventId = apiEventId ?? localEventId;
-      
+
       await LocalEventStorage.saveEvent(
         eventId: finalEventId,
         eventName: eventName,
@@ -1663,7 +1675,7 @@ class EventService {
         imageUrl: imageUrl,
         filename: filename,
       );
-      
+
       // Mark as synced if API creation succeeded
       if (eventCreatedViaAPI) {
         await LocalEventStorage.markEventSynced(finalEventId);
@@ -1697,10 +1709,10 @@ class EventService {
               'images': imageUrl != null ? [imageUrl] : [],
             }),
           ).timeout(const Duration(seconds: 10));
-          
+
           print("📥 Create Event (PUT EventWithImages) Response Status: ${putResponse.statusCode}");
           print("📥 Create Event Response Body: ${putResponse.body}");
-          
+
           if (putResponse.statusCode == 200 || putResponse.statusCode == 201) {
             await LocalEventStorage.markEventSynced(finalEventId);
             eventCreatedViaAPI = true;
@@ -1721,7 +1733,7 @@ class EventService {
           'imageUrl': imageUrl,
           'filename': filename,
         },
-        'message': eventCreatedViaAPI 
+        'message': eventCreatedViaAPI
             ? 'Event created successfully ✅\nImage uploaded and event saved to API'
             : 'Event saved successfully ✅\nImage uploaded to API. Backend will process and create event automatically.',
         'imageUrl': imageUrl,
@@ -1763,7 +1775,7 @@ class EventService {
       } catch (e) {
         print("⚠️ Could not get instituteId: $e");
       }
-      
+
       if (instituteId == null || instituteId.isEmpty) {
         instituteId = "10085";
       }
@@ -1834,6 +1846,8 @@ class _EmployeeEventScreenState extends State<EmployeeEventScreen> {
   bool isLoadingSections = false;
   String _selectedFilterYear = "";
   String _selectedFilterMonth = "";
+
+  bool isUploading = false;
 
   @override
   void initState() {
@@ -1913,6 +1927,81 @@ class _EmployeeEventScreenState extends State<EmployeeEventScreen> {
     return newFile;
   }
 
+  static Future<Map<String, dynamic>> editEventAddImage({
+    required int eventId,
+    required File newImageFile,
+    required int employeeId,
+    required String courseId,
+  }) async {
+    try {
+      String? accessToken = await MySharedPreferences.instance.getStringValue("token");
+      String? instituteId = await MySharedPreferences.instance.getStringValue("instituteId") ?? "10085";
+
+      final uri = Uri.parse("${ApiUrls.baseUrl}Event/EditEvent");
+
+      var request = http.MultipartRequest('PUT', uri);
+
+      request.headers.addAll({
+        'Accept': 'application/json',
+        if (accessToken != null) 'Authorization': 'Bearer $accessToken',
+      });
+
+      // Required Fields
+      request.fields['EventId'] = eventId.toString();
+      request.fields['EmployeeId'] = employeeId.toString();
+      request.fields['CourseId'] = courseId;
+
+      // New Image - Field name MUST be "NewImages"
+      final fileName = newImageFile.path.split(Platform.pathSeparator).last;
+      final extension = fileName.split('.').last.toLowerCase();
+
+      String mimeType = 'image/jpeg';
+      if (extension == 'png') mimeType = 'image/png';
+      if (extension == 'webp') mimeType = 'image/webp';
+
+      final multipartFile = await http.MultipartFile.fromPath(
+        'NewImages',                    // ← Critical: Must match API param
+        newImageFile.path,
+        filename: fileName,
+        contentType: MediaType.parse(mimeType),
+      );
+
+      request.files.add(multipartFile);
+
+      print("📤 Calling EditEvent API - Adding new image");
+      print("🎯 EventId: $eventId | EmployeeId: $employeeId | CourseId: $courseId");
+
+      final streamedResponse = await request.send().timeout(const Duration(seconds: 60));
+      final response = await http.Response.fromStream(streamedResponse);
+
+      print("📥 EditEvent Status: ${response.statusCode}");
+      print("📥 Response: ${response.body}");
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        try {
+          final jsonResponse = jsonDecode(response.body);
+          return {
+            'success': true,
+            'message': jsonResponse['message'] ?? 'Image added successfully to event',
+            'data': jsonResponse,
+          };
+        } catch (e) {
+          return {'success': true, 'message': 'Image added successfully'};
+        }
+      } else {
+        String errorMsg = 'Failed to add image';
+        try {
+          final err = jsonDecode(response.body);
+          errorMsg = err['message'] ?? err['error'] ?? response.body;
+        } catch (_) {}
+        return {'success': false, 'error': errorMsg, 'statusCode': response.statusCode};
+      }
+    } catch (e) {
+      print("❌ editEventAddImage Error: $e");
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
   Future<void> _pickAndUploadImage(EventModel event) async {
     final XFile? pickedFile =
         await picker.pickImage(source: ImageSource.gallery);
@@ -1926,10 +2015,11 @@ class _EmployeeEventScreenState extends State<EmployeeEventScreen> {
       // 🔹 Show image immediately in UI (local path)
       setState(() {
         event.images.add(file.path);
+        isUploading = true;
       });
 
       // 🔹 Save local path in SharedPreferences (will be preserved on logout)
-      await LocalImageStorage.saveImage(event.eventId, file.path);
+      await LocalImageStorage.saveImage(event.eventId!, file.path);
 
       // Get employeeId from SharedPreferences
       String? employeeIdStr;
@@ -1942,7 +2032,7 @@ class _EmployeeEventScreenState extends State<EmployeeEventScreen> {
       } catch (e) {
         print("⚠️ Could not get employeeID: $e");
       }
-      
+
       if (employeeId == null) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -1967,34 +2057,43 @@ class _EmployeeEventScreenState extends State<EmployeeEventScreen> {
       } catch (e) {
         print("⚠️ Could not fetch sections: $e");
       }
-      
+
       // Fallback to default sectionId if API call failed
       if (sectionId == null) {
         sectionId = 40130; // Default fallback
         print("⚠️ Using default sectionId: $sectionId");
       }
 
-      // 🔥 API upload call - upload to gallery (using gallery API, not event-specific API)
-      // Gallery upload will make the image available in both gallery and event list
-      // Description will be made unique automatically in uploadGalleryImage function
-      var result = await EventService.uploadGalleryImage(
-        file,
-        event.eventName, // This will be made unique with timestamp in uploadGalleryImage
-        employeeId,
-        sectionId,
-        // Note: No eventId parameter - this is the gallery upload API
+      // var result = await EventService.uploadGalleryImage(
+      //   file,
+      //   event.eventName, // This will be made unique with timestamp in uploadGalleryImage
+      //   employeeId,
+      //   sectionId,
+      //   // Note: No eventId parameter - this is the gallery upload API
+      // );
+
+      debugPrint("eventId : ${event.eventId}");
+      debugPrint("eventCourseId : ${event.courseId}");
+
+      final result = await editEventAddImage(
+        eventId: event.eventId!,
+        newImageFile: file,
+        employeeId: employeeId,
+        courseId: event.courseId.toString(),
       );
+
+      setState(() => isUploading = false);
 
       if (result['success'] == true) {
         // ✅ Gallery upload successful
         final serverUrl = result['serverUrl'] as String?;
         final filename = result['filename'] as String?;
-        
+
         print("✅ Image uploaded to gallery successfully!");
         print("📋 Server URL: $serverUrl");
         print("📋 Filename: $filename");
         print("ℹ️ Image will appear in both gallery and event list via EventWithImages API");
-        
+
         // Refresh the events list to get the updated images from the API
         // The backend should link the uploaded image to the appropriate event(s)
         setState(() {
@@ -2004,13 +2103,13 @@ class _EmployeeEventScreenState extends State<EmployeeEventScreen> {
             month: int.parse(_selectedFilterMonth),
           );
         });
-        
+
         // If API returned server URL, save it
         if (serverUrl != null && serverUrl.isNotEmpty) {
           // Remove local path and use server URL
-          await LocalImageStorage.removeImage(event.eventId, file.path);
-          await LocalImageStorage.saveServerUrl(event.eventId, serverUrl);
-          
+          await LocalImageStorage.removeImage(event.eventId!, file.path);
+          await LocalImageStorage.saveServerUrl(event.eventId!, serverUrl);
+
           // Update UI to show server URL
           setState(() {
             final index = event.images.indexOf(file.path);
@@ -2018,14 +2117,14 @@ class _EmployeeEventScreenState extends State<EmployeeEventScreen> {
               event.images[index] = serverUrl;
             }
           });
-          
+
           print("✅ Server URL saved: $serverUrl");
         } else {
           // No server URL in response - image will be available via EventWithImages API
           // Keep local path temporarily until we refresh from API
           print("ℹ️ Server URL not in response - will be available via EventWithImages API");
         }
-        
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -2379,7 +2478,7 @@ class _EmployeeEventScreenState extends State<EmployeeEventScreen> {
 
                               // Show loading using rootNavigator to avoid context issues
                               if (!mounted) return;
-                              
+
                               showDialog(
                                 context: this.context,
                                 barrierDismissible: false,
@@ -2428,7 +2527,7 @@ class _EmployeeEventScreenState extends State<EmployeeEventScreen> {
                                   final message = result['eventCreatedViaAPI'] == true
                                       ? "Event created successfully ✅\nImage uploaded and event saved to API"
                                       : "Event saved successfully ✅\nImage uploaded to API. Event will appear in list after backend processing.";
-                                  
+
                                   // ScaffoldMessenger.of(this.context).showSnackBar(
                                   //   SnackBar(
                                   //     content: Text(message),
@@ -2506,9 +2605,11 @@ class _EmployeeEventScreenState extends State<EmployeeEventScreen> {
           for (var event in day.events) {
             eventModels.add(
               EventModel(
-                eventId: 0, // API doesn't return eventId, so we use 0 or generate one
+                eventId: event.eventId, // API doesn't return eventId, so we use 0 or generate one
                 eventName: event.eventName,
                 eventDate: day.date,
+                courseId: event.courseId,
+                courseName: event.courseName,
                 images: event.images,
               ),
             );
@@ -2540,6 +2641,7 @@ class _EmployeeEventScreenState extends State<EmployeeEventScreen> {
     });
   }
 
+
   @override
   Widget build(BuildContext context) {
 
@@ -2550,180 +2652,214 @@ class _EmployeeEventScreenState extends State<EmployeeEventScreen> {
         child: const Icon(Icons.add),
         tooltip: "Add Event",
       ),
-      body: Container(
-        child: Column(
+      body: Stack(
+        children: [
 
-          children: [
+          Column(
 
-            Padding(
-              padding: EdgeInsets.fromLTRB(10, 10, 10, 8),
-              child: Row(
-                children: [
+            children: [
 
-                  Expanded(
-                    child: Container(
-                      height: 45,
-                      alignment: Alignment.center,
-                      child: DropdownDatePicker(
-                        dateformatorder: OrderFormat.ydm, // default is myd
-                        inputDecoration: InputDecoration(
-                          fillColor: AppColors.whiteColor,
-                          contentPadding: EdgeInsets.only(left: 20,right: 20),
-                            enabledBorder:  OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              borderSide: BorderSide(color: AppColors.blue, width: 1.0),
-                            ),
-                            disabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              borderSide: BorderSide(color: AppColors.blue, width: 1.0),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              borderSide: BorderSide(color: AppColors.blue, width: 1.0),
-                            ),
-                            border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10))),
-                        isDropdownHideUnderline: true,
-                        isFormValidator: true,
-                        startYear: 1900,
-                        endYear: 2030,
-                        width: 2,
-                        textStyle: TextStyle(fontFamily: CustomText.fontPoppins,fontSize: 12.0),
-                        hintTextStyle: TextStyle(fontFamily: CustomText.fontPoppins,fontSize: 12.0),
-                        showDay: false,
-                        showMonth: false,
-                        showYear: true,
-                        selectedYear: int.parse(_selectedFilterYear),
-                        onChangedDay: (value) => print('onChangedDay: $value'),
-                        onChangedMonth: (value) => print('onChangedMonth: $value'),
-                        onChangedYear: (value) {
-                          print('onChangedYear: $value');
-                          _selectedFilterYear = value.toString();
-                        },
+              Padding(
+                padding: EdgeInsets.fromLTRB(10, 10, 10, 8),
+                child: Row(
+                  children: [
+
+                    Expanded(
+                      child: Container(
+                        height: 45,
+                        alignment: Alignment.center,
+                        child: DropdownDatePicker(
+                          dateformatorder: OrderFormat.ydm, // default is myd
+                          inputDecoration: InputDecoration(
+                              fillColor: AppColors.whiteColor,
+                              contentPadding: EdgeInsets.only(left: 20,right: 20),
+                              enabledBorder:  OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: BorderSide(color: AppColors.blue, width: 1.0),
+                              ),
+                              disabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: BorderSide(color: AppColors.blue, width: 1.0),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: BorderSide(color: AppColors.blue, width: 1.0),
+                              ),
+                              border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10))),
+                          isDropdownHideUnderline: true,
+                          isFormValidator: true,
+                          startYear: 1900,
+                          endYear: 2030,
+                          width: 2,
+                          textStyle: TextStyle(fontFamily: CustomText.fontPoppins,fontSize: 12.0),
+                          hintTextStyle: TextStyle(fontFamily: CustomText.fontPoppins,fontSize: 12.0),
+                          showDay: false,
+                          showMonth: false,
+                          showYear: true,
+                          selectedYear: int.parse(_selectedFilterYear),
+                          onChangedDay: (value) => print('onChangedDay: $value'),
+                          onChangedMonth: (value) => print('onChangedMonth: $value'),
+                          onChangedYear: (value) {
+                            print('onChangedYear: $value');
+                            _selectedFilterYear = value.toString();
+                          },
+                        ),
                       ),
                     ),
-                  ),
 
-                  const SizedBox(width: 2),
+                    const SizedBox(width: 2),
 
-                  // Month Box - Shows Full Month Name
-                  Expanded(
-                    child: Container(
-                      height: 45,
-                      alignment: Alignment.center,
-                      child: DropdownDatePicker(
-                        dateformatorder: OrderFormat.ydm, // default is myd
-                        inputDecoration: InputDecoration(
-                            fillColor: AppColors.whiteColor,
-                            contentPadding: EdgeInsets.only(left: 10,right: 10),
-                            enabledBorder:  OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              borderSide: BorderSide(color: AppColors.blue, width: 1.0),
-                            ),
-                            disabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              borderSide: BorderSide(color: AppColors.blue, width: 1.0),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              borderSide: BorderSide(color: AppColors.blue, width: 1.0),
-                            ),
-                            border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10))),
-                        isDropdownHideUnderline: true,
-                        isFormValidator: true,
-                        width: 2,
-                        textStyle: TextStyle(fontFamily: CustomText.fontPoppins,fontSize: 12.0),
-                        hintTextStyle: TextStyle(fontFamily: CustomText.fontPoppins,fontSize: 12.0),
-                        showDay: false,
-                        showMonth: true,
-                        showYear: false,
-                        selectedMonth: int.parse(_selectedFilterMonth),
-                        onChangedDay: (value) => print('onChangedDay: $value'),
-                        onChangedMonth: (value) {
-                          _selectedFilterMonth = value.toString();
-                        },
-                        onChangedYear: (value) {
-                        },
+                    // Month Box - Shows Full Month Name
+                    Expanded(
+                      child: Container(
+                        height: 45,
+                        alignment: Alignment.center,
+                        child: DropdownDatePicker(
+                          dateformatorder: OrderFormat.ydm, // default is myd
+                          inputDecoration: InputDecoration(
+                              fillColor: AppColors.whiteColor,
+                              contentPadding: EdgeInsets.only(left: 10,right: 10),
+                              enabledBorder:  OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: BorderSide(color: AppColors.blue, width: 1.0),
+                              ),
+                              disabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: BorderSide(color: AppColors.blue, width: 1.0),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: BorderSide(color: AppColors.blue, width: 1.0),
+                              ),
+                              border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10))),
+                          isDropdownHideUnderline: true,
+                          isFormValidator: true,
+                          width: 2,
+                          textStyle: TextStyle(fontFamily: CustomText.fontPoppins,fontSize: 12.0),
+                          hintTextStyle: TextStyle(fontFamily: CustomText.fontPoppins,fontSize: 12.0),
+                          showDay: false,
+                          showMonth: true,
+                          showYear: false,
+                          selectedMonth: int.parse(_selectedFilterMonth),
+                          onChangedDay: (value) => print('onChangedDay: $value'),
+                          onChangedMonth: (value) {
+                            _selectedFilterMonth = value.toString();
+                          },
+                          onChangedYear: (value) {
+                          },
+                        ),
                       ),
                     ),
-                  ),
 
-                  const SizedBox(width: 5),
+                    const SizedBox(width: 5),
 
-                  Container(
-                    height: 45,
-                    child: CustomButton(
-                      text: "Filter",
-                      callback: _applyFilter,
-                      radius: 10,
+                    Container(
+                      height: 45,
+                      child: CustomButton(
+                        text: "Filter",
+                        callback: _applyFilter,
+                        radius: 10,
+                      ),
+                    )
+                  ],
+                ),
+              ),
+
+              Expanded(
+                child: FutureBuilder<List<EventModel>>(
+                  future: futureEvents,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    } else if (snapshot.hasError) {
+                      return Center(child: Text("Error: ${snapshot.error}"));
+                    } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                      return const Center(child: Text("No Events Found"));
+                    } else {
+                      final events = snapshot.data!;
+                      return ListView.builder(
+                        itemCount: events.length,
+                        itemBuilder: (context, index) {
+                          final event = events[index];
+                          return Card(
+                            margin: const EdgeInsets.all(10),
+                            child: ExpansionTile(
+                              title: Text(event.eventName),
+                              subtitle: Text(event.eventDate.toString().split(" ")[0]),
+                              children: [
+                                if (event.images.isNotEmpty)
+                                  SizedBox(
+                                    height: 150,
+                                    child: ListView.builder(
+                                      scrollDirection: Axis.horizontal,
+                                      itemCount: event.images.length,
+                                      itemBuilder: (context, imgIndex) {
+                                        final img = event.images[imgIndex];
+                                        return Padding(
+                                          padding: const EdgeInsets.all(5),
+                                          child: Image.network(
+                                            img,
+                                            errorBuilder: (context,stackTrace,error){
+                                              return Container();
+                                            },
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  )
+                                else
+                                  const Padding(
+                                    padding: EdgeInsets.all(8.0),
+                                    child: Text("No Images Available"),
+                                  ),
+
+                                // ➕ Add Image Button
+                                TextButton.icon(
+                                  onPressed: () => _pickAndUploadImage(event),
+                                  icon: const Icon(Icons.add_a_photo),
+                                  label: const Text("Add Image"),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      );
+                    }
+                  },
+                ),
+              ),
+
+            ],
+          ),
+
+          if (isUploading)
+            Container(
+              color: Colors.black.withOpacity(0.7),
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 5,
                     ),
-                  )
-                ],
+                    const SizedBox(height: 30),
+                    const Text(
+                      "Uploading Image...",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
 
-            Expanded(
-              child: FutureBuilder<List<EventModel>>(
-                future: futureEvents,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  } else if (snapshot.hasError) {
-                    return Center(child: Text("Error: ${snapshot.error}"));
-                  } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                    return const Center(child: Text("No Events Found"));
-                  } else {
-                    final events = snapshot.data!;
-                    return ListView.builder(
-                      itemCount: events.length,
-                      itemBuilder: (context, index) {
-                        final event = events[index];
-                        return Card(
-                          margin: const EdgeInsets.all(10),
-                          child: ExpansionTile(
-                            title: Text(event.eventName),
-                            subtitle: Text(event.eventDate.toString().split(" ")[0]),
-                            children: [
-                              if (event.images.isNotEmpty)
-                                SizedBox(
-                                  height: 150,
-                                  child: ListView.builder(
-                                    scrollDirection: Axis.horizontal,
-                                    itemCount: event.images.length,
-                                    itemBuilder: (context, imgIndex) {
-                                      final img = event.images[imgIndex];
-                                      return Padding(
-                                        padding: const EdgeInsets.all(5),
-                                        child: Image.network(img),
-                                      );
-                                    },
-                                  ),
-                                )
-                              else
-                                const Padding(
-                                  padding: EdgeInsets.all(8.0),
-                                  child: Text("No Images Available"),
-                                ),
-
-                              // ➕ Add Image Button
-                              TextButton.icon(
-                                onPressed: () => _pickAndUploadImage(event),
-                                icon: const Icon(Icons.add_a_photo),
-                                label: const Text("Add Image"),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    );
-                  }
-                },
-              ),
-            )
-
-          ],
-        ),
+        ],
       ),
     );
   }

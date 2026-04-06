@@ -121,6 +121,7 @@ class HomeworkProviders extends ChangeNotifier {
     String studentId, {
     bool forceRefresh = false,
   }) async {
+    debugPrint("fetch homework studentId : $studentId");
     if (studentId.isEmpty) return;
 
     // Load local cache first (after reinstall this is empty)
@@ -259,6 +260,7 @@ class HomeworkProviders extends ChangeNotifier {
       );
       final response = await http.get(uri);
 
+      debugPrint("fetch homework : https://api.schoolnxpro.com/api/Homework/Id?admissionId=$studentId&instituteId=$instituteId");
       if (response.statusCode == 200) {
         final jsonData = json.decode(response.body);
         final apiData = jsonData['data'];

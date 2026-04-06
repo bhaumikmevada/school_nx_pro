@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:developer';
+import 'package:flutter/widgets.dart';
 import 'package:school_nx_pro/repository/base_repo.dart';
 import 'package:school_nx_pro/utils/api_urls.dart';
 import 'package:school_nx_pro/utils/my_sharepreferences.dart';
@@ -90,6 +91,8 @@ class EmployeeAttendanceRepo extends BaseRepository {
       api: url,
       data: data,
     );
+
+    debugPrint("submitStudentAttendence data : $data");
 
     log(response.body, name: 'response submitStudentAttendence');
 

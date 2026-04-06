@@ -130,6 +130,8 @@ class SelectInstituteScreenState extends State<SelectInstituteScreen> {
                                   (i) =>
                                       i['instituteName']?.toString() ==
                                       selectedInstitute);
+                              debugPrint("institute : $institute");
+
                               final instId =
                                   institute['instituteId']?.toString() ?? '';
                               final createdBy = institute['createdByInstituteUserId']
@@ -150,7 +152,7 @@ class SelectInstituteScreenState extends State<SelectInstituteScreen> {
                                     .setStringValue(
                                         'createdByInstituteUserId', createdBy);
                               }
-                              log("Selected Institute ID: $instId");
+                              log("Selected Institute ID: $instId , createdBy : $createdBy");
                               if (!mounted) return;
                               Navigator.pushAndRemoveUntil(
                                 context,
