@@ -275,7 +275,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => const HomeworkScreen(
+                    builder: (context) =>  HomeworkScreen(
                       userType: UserType.employee,
                     ),
                   ),

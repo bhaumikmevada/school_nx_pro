@@ -1,138 +1,246 @@
-//khushi
+// To parse this JSON data, do
+//
+//     final studentDetailsModel = studentDetailsModelFromJson(jsonString);
+
+import 'package:meta/meta.dart';
+import 'dart:convert';
+
+StudentDetailsModel studentDetailsModelFromJson(String str) => StudentDetailsModel.fromJson(json.decode(str));
+
+String studentDetailsModelToJson(StudentDetailsModel data) => json.encode(data.toJson());
+
 class StudentDetailsModel {
-  final String academicYear;
-  final StudentDetails studentDetails;
-  final List<FeeDetail> feeDetails;
-  final TotalDue totalDue;
-  final String yearOfAdmission;
+  ProfileData profileData;
+  AttendanceData attendanceData;
+  List<NextHolidayDatum> nextHolidayData;
+  List<dynamic> todaysHomeworkData;
+  List<EventsDatum> eventsData;
+  FeeData feeData;
 
   StudentDetailsModel({
-    required this.academicYear, required this.yearOfAdmission,
-    required this.studentDetails,
-    required this.feeDetails,
-    required this.totalDue,
+    required this.profileData,
+    required this.attendanceData,
+    required this.nextHolidayData,
+    required this.todaysHomeworkData,
+    required this.eventsData,
+    required this.feeData,
   });
 
-  factory StudentDetailsModel.fromJson(Map<String, dynamic> json) {
-    return StudentDetailsModel(
-      academicYear: json['academicYear'],
-      yearOfAdmission: json['yearOfAdmission'],
-      studentDetails: StudentDetails.fromJson(json["studentDetails"]),
-      feeDetails: List<FeeDetail>.from(
-        json["feeDetails"].map((x) => FeeDetail.fromJson(x)),
-      ),
-      totalDue: TotalDue.fromJson(json["totalDue"]),
-    );
-  }
+  factory StudentDetailsModel.fromJson(Map<String, dynamic> json) => StudentDetailsModel(
+    profileData: ProfileData.fromJson(json["profileData"]),
+    attendanceData: AttendanceData.fromJson(json["attendanceData"]),
+    nextHolidayData: List<NextHolidayDatum>.from(json["nextHolidayData"].map((x) => NextHolidayDatum.fromJson(x))),
+    todaysHomeworkData: List<dynamic>.from(json["todaysHomeworkData"].map((x) => x)),
+    eventsData: List<EventsDatum>.from(json["eventsData"].map((x) => EventsDatum.fromJson(x))),
+    feeData: FeeData.fromJson(json["feeData"]),
+  );
+
+  Map<String, dynamic> toJson() => {
+    "profileData": profileData.toJson(),
+    "attendanceData": attendanceData.toJson(),
+    "nextHolidayData": List<dynamic>.from(nextHolidayData.map((x) => x.toJson())),
+    "todaysHomeworkData": List<dynamic>.from(todaysHomeworkData.map((x) => x)),
+    "eventsData": List<dynamic>.from(eventsData.map((x) => x.toJson())),
+    "feeData": feeData.toJson(),
+  };
+}
+
+class AttendanceData {
+  List<Last7Day> last7Days;
+  MonthlySummary monthlySummary;
+
+  AttendanceData({
+    required this.last7Days,
+    required this.monthlySummary,
+  });
+
+  factory AttendanceData.fromJson(Map<String, dynamic> json) => AttendanceData(
+    last7Days: List<Last7Day>.from(json["last7Days"].map((x) => Last7Day.fromJson(x))),
+    monthlySummary: MonthlySummary.fromJson(json["monthlySummary"]),
+  );
+
+  Map<String, dynamic> toJson() => {
+    "last7Days": List<dynamic>.from(last7Days.map((x) => x.toJson())),
+    "monthlySummary": monthlySummary.toJson(),
+  };
+}
+
+class Last7Day {
+  String date;
+  String status;
+
+  Last7Day({
+    required this.date,
+    required this.status,
+  });
+
+  factory Last7Day.fromJson(Map<String, dynamic> json) => Last7Day(
+    date: json["date"],
+    status: json["status"],
+  );
+
+  Map<String, dynamic> toJson() => {
+    "date": date,
+    "status": status,
+  };
+}
+
+class MonthlySummary {
+  int present;
+  int absent;
+  int totalDays;
+
+  MonthlySummary({
+    required this.present,
+    required this.absent,
+    required this.totalDays,
+  });
+
+  factory MonthlySummary.fromJson(Map<String, dynamic> json) => MonthlySummary(
+    present: json["present"],
+    absent: json["absent"],
+    totalDays: json["totalDays"],
+  );
+
+  Map<String, dynamic> toJson() => {
+    "present": present,
+    "absent": absent,
+    "totalDays": totalDays,
+  };
+}
+
+class EventsDatum {
+  int eventId;
+  String eventTitle;
+  String eventDate;
+
+  EventsDatum({
+    required this.eventId,
+    required this.eventTitle,
+    required this.eventDate,
+  });
+
+  factory EventsDatum.fromJson(Map<String, dynamic> json) => EventsDatum(
+    eventId: json["eventId"],
+    eventTitle: json["eventTitle"],
+    eventDate: json["eventDate"],
+  );
+
+  Map<String, dynamic> toJson() => {
+    "eventId": eventId,
+    "eventTitle": eventTitle,
+    "eventDate": eventDate,
+  };
+}
+
+class FeeData {
+  int totalDue;
+  int totalInvoice;
+  int paidAmount;
+  int remainingAmount;
+  List<FeeDetail> feeDetails;
+
+  FeeData({
+    required this.totalDue,
+    required this.totalInvoice,
+    required this.paidAmount,
+    required this.remainingAmount,
+    required this.feeDetails,
+  });
+
+  factory FeeData.fromJson(Map<String, dynamic> json) => FeeData(
+    totalDue: json["totalDue"],
+    totalInvoice: json["totalInvoice"],
+    paidAmount: json["paidAmount"],
+    remainingAmount: json["remainingAmount"],
+    feeDetails: List<FeeDetail>.from(json["feeDetails"].map((x) => FeeDetail.fromJson(x))),
+  );
+
+  Map<String, dynamic> toJson() => {
+    "totalDue": totalDue,
+    "totalInvoice": totalInvoice,
+    "paidAmount": paidAmount,
+    "remainingAmount": remainingAmount,
+    "feeDetails": List<dynamic>.from(feeDetails.map((x) => x.toJson())),
+  };
 }
 
 class FeeDetail {
-  final String studentName;
-  final String fathersname;
-  final String feeType;
-  final int totalInvoice;
-  final int totalDue;
-  final int totalReceipt;
-  final String currentSectionName;
-  final DateTime accountingVoucherDate;
-  final String sessionYear;
-  final String currentCourseName;
+  String feeType;
+  int netDue;
+  int totalInvoice;
 
   FeeDetail({
-    required this.studentName,
-    required this.fathersname,
     required this.feeType,
+    required this.netDue,
     required this.totalInvoice,
-    required this.totalDue,
-    required this.totalReceipt,
-    required this.currentSectionName,
-    required this.accountingVoucherDate,
-    required this.sessionYear,
-    required this.currentCourseName,
   });
 
   factory FeeDetail.fromJson(Map<String, dynamic> json) => FeeDetail(
-        studentName: json["studentName"],
-        fathersname: json["fathersname"],
-        feeType: json["feeType"],
-        totalInvoice: json["totalInvoice"],
-        totalDue: json["totalDue"],
-        totalReceipt: json["totalReceipt"],
-        currentSectionName: json["currentSectionName"],
-        accountingVoucherDate: DateTime.parse(json["accountingVoucherDate"]),
-        sessionYear: json["sessionYear"],
-        currentCourseName: json["currentCourseName"],
-      );
+    feeType: json["feeType"],
+    netDue: json["netDue"],
+    totalInvoice: json["totalInvoice"],
+  );
+
+  Map<String, dynamic> toJson() => {
+    "feeType": feeType,
+    "netDue": netDue,
+    "totalInvoice": totalInvoice,
+  };
 }
 
-class StudentDetails {
-  final String studentName;
-  final String fathersname;
-  final String currentSectionName;
-  final String currentCourseName;
-  final String sessionYear;
+class NextHolidayDatum {
+  int holidayId;
+  String holidayDate;
+  String reason;
 
-  StudentDetails({
-    required this.studentName,
-    required this.fathersname,
-    required this.currentSectionName,
-    required this.currentCourseName,
-    required this.sessionYear,
+  NextHolidayDatum({
+    required this.holidayId,
+    required this.holidayDate,
+    required this.reason,
   });
 
-  factory StudentDetails.fromJson(Map<String, dynamic> json) => StudentDetails(
-        studentName: json["studentName"],
-        fathersname: json["fathersname"],
-        currentSectionName: json["currentSectionName"],
-        currentCourseName: json["currentCourseName"],
-        sessionYear: json["sessionYear"],
-      );
+  factory NextHolidayDatum.fromJson(Map<String, dynamic> json) => NextHolidayDatum(
+    holidayId: json["holidayId"],
+    holidayDate: json["holidayDate"],
+    reason: json["reason"],
+  );
+
+  Map<String, dynamic> toJson() => {
+    "holidayId": holidayId,
+    "holidayDate": holidayDate,
+    "reason": reason,
+  };
 }
 
-class TotalDue {
-  final int totalDueForAllFeeTypesInvoice;
-  final int totalPaidForAllFeeTypesDue;
-  final int totalReciept;
-  final int remainingAmount;
-  final List<FeeInvoiceTypeDetail> feeInvoiceTypeDetails;
+class ProfileData {
+  int userId;
+  String type;
+  String name;
+  String mobile;
+  int city;
 
-  TotalDue({
-    required this.totalDueForAllFeeTypesInvoice,
-    required this.totalPaidForAllFeeTypesDue,
-    required this.totalReciept,
-    required this.remainingAmount,
-    required this.feeInvoiceTypeDetails,
+  ProfileData({
+    required this.userId,
+    required this.type,
+    required this.name,
+    required this.mobile,
+    required this.city,
   });
 
-  factory TotalDue.fromJson(Map<String, dynamic> json) => TotalDue(
-        totalDueForAllFeeTypesInvoice: json["totalDueForAllFeeTypesInvoice"],
-        totalPaidForAllFeeTypesDue: json["totalPaidForAllFeeTypesDue"],
-        totalReciept: json["totalReciept"],
-        remainingAmount: json["remainingAmount"],
-        feeInvoiceTypeDetails: List<FeeInvoiceTypeDetail>.from(
-            json["feeInvoiceTypeDetails"]
-                .map((x) => FeeInvoiceTypeDetail.fromJson(x))),
-      );
-}
+  factory ProfileData.fromJson(Map<String, dynamic> json) => ProfileData(
+    userId: json["userId"],
+    type: json["type"],
+    name: json["name"],
+    mobile: json["mobile"],
+    city: json["city"],
+  );
 
-class FeeInvoiceTypeDetail {
-  final String feeType;
-  final int totalFeeTypeInvoice;
-  final int totalFeeTypeDue;
-  final int totalFeeTypeReciept;
-
-  FeeInvoiceTypeDetail({
-    required this.feeType,
-    required this.totalFeeTypeInvoice,
-    required this.totalFeeTypeDue,
-    required this.totalFeeTypeReciept,
-  });
-
-  factory FeeInvoiceTypeDetail.fromJson(Map<String, dynamic> json) =>
-      FeeInvoiceTypeDetail(
-        feeType: json["feeType"],
-        totalFeeTypeInvoice: json["totalFeeTypeInvoice"],
-        totalFeeTypeDue: json["totalFeeTypeDue"],
-        totalFeeTypeReciept: json["totalFeeTypeReciept"],
-      );
+  Map<String, dynamic> toJson() => {
+    "userId": userId,
+    "type": type,
+    "name": name,
+    "mobile": mobile,
+    "city": city,
+  };
 }

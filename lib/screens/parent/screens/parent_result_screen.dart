@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:school_nx_pro/theme/app_colors.dart';
 import '../../../components/app_button.dart';
 import '../parent_components/parent_appbar.dart';
 import '../../../utils/my_sharepreferences.dart';
@@ -293,6 +294,7 @@ class _ParentResultScreenState extends State<ParentResultScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: const ParentAppbar(title: "Marks"),
+      backgroundColor: AppColors.whiteColor,
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: SingleChildScrollView(

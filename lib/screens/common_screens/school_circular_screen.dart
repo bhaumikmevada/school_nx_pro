@@ -133,127 +133,125 @@ class _EventScreenState extends State<EventScreen> {
       appBar: const ParentAppbar(
         title: "Events",
       ),
-      body: Expanded(
-        child: FutureBuilder<List<EventModel>>(
-          future: futureEvents,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            } else if (snapshot.hasError) {
-              return Center(child: Text("Error: ${snapshot.error}"));
-            } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-              return const Center(child: Text("No Events Found"));
-            } else {
-              final events = snapshot.data!;
-              return ListView.builder(
-                itemCount: events.length,
-                itemBuilder: (context, index) {
-                  final event = events[index];
-                  return Container(
-                    margin: const EdgeInsets.all(5),
-                    padding: EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                          color: AppColors.colorcfcfcf, width: 1),
-                      color: AppColors.whiteColor,
-                      borderRadius: BorderRadius.circular(10),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.colorcfcfcf,
-                          blurRadius: 2.0,
-                          offset: const Offset(1.0, 0.0),
-                        )
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Stack(
-                          alignment: Alignment.topRight,
-                          children: [
-                            // Date Badge (Top Right)
-                            Container(
-                              width: 100,
-                              height: 30,
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                borderRadius: const BorderRadius.only(
-                                  topRight: Radius.circular(9),
-                                ),
-                                color: AppColors.blue,
+      body: FutureBuilder<List<EventModel>>(
+        future: futureEvents,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          } else if (snapshot.hasError) {
+            return Center(child: Text("Error: ${snapshot.error}"));
+          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+            return const Center(child: Text("No Events Found"));
+          } else {
+            final events = snapshot.data!;
+            return ListView.builder(
+              itemCount: events.length,
+              itemBuilder: (context, index) {
+                final event = events[index];
+                return Container(
+                  margin: const EdgeInsets.all(5),
+                  padding: EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                        color: AppColors.colorcfcfcf, width: 1),
+                    color: AppColors.whiteColor,
+                    borderRadius: BorderRadius.circular(10),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.colorcfcfcf,
+                        blurRadius: 2.0,
+                        offset: const Offset(1.0, 0.0),
+                      )
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Stack(
+                        alignment: Alignment.topRight,
+                        children: [
+                          // Date Badge (Top Right)
+                          Container(
+                            width: 100,
+                            height: 30,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              borderRadius: const BorderRadius.only(
+                                topRight: Radius.circular(9),
                               ),
-                              child: CustomText.TextMedium(
-                                Utils.convertDateFormat(
-                                  inputDate: event.eventDate.toString(),
-                                  inputFormat: 'yyyy-MM-dd',
-                                  outputFormat: 'dd-MM-yyyy',
-                                ),
-                                fontSize: 13.0,
-                                color: AppColors.whiteColor,
-                                textAlign: TextAlign.center,
-                              ),
+                              color: AppColors.blue,
                             ),
-                  
-                            // Main Content
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.center,
-                                mainAxisAlignment: MainAxisAlignment.start,
-                                children: [
-                                  // Event Image
-                                  event.images.isNotEmpty
-                                      ? ClipRRect(
-                                    borderRadius: BorderRadius.circular(10),
-                                    child: Image.network(
-                                      event.images[0],
-                                      width: 80,
-                                      height: 80,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (context, error, stackTrace) {
-                                        return Container(
-                                          width: 80,
-                                          height: 80,
-                                          color: Colors.grey[200],
-                                          child: const Icon(Icons.image_not_supported),
-                                        );
-                                      },
-                                    ),
-                                  )
-                                      : Container(
+                            child: CustomText.TextMedium(
+                              Utils.convertDateFormat(
+                                inputDate: event.eventDate.toString(),
+                                inputFormat: 'yyyy-MM-dd',
+                                outputFormat: 'dd-MM-yyyy',
+                              ),
+                              fontSize: 13.0,
+                              color: AppColors.whiteColor,
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+
+                          // Main Content
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              mainAxisAlignment: MainAxisAlignment.start,
+                              children: [
+                                // Event Image
+                                event.images.isNotEmpty
+                                    ? ClipRRect(
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: Image.network(
+                                    event.images[0],
                                     width: 80,
                                     height: 80,
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey[200],
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: const Icon(
-                                      Icons.event,
-                                      size: 40,
-                                      color: Colors.grey,
-                                    ),
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return Container(
+                                        width: 80,
+                                        height: 80,
+                                        color: Colors.grey[200],
+                                        child: const Icon(Icons.image_not_supported),
+                                      );
+                                    },
                                   ),
-                  
-                                  const SizedBox(width: 10),
-                  
-                                  // Event Name
-                                  CustomText.TextSemiBold(
-                                    event.eventName.toString(),
-                                    color: AppColors.blackColor,
+                                )
+                                    : Container(
+                                  width: 80,
+                                  height: 80,
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[200],
+                                    borderRadius: BorderRadius.circular(10),
                                   ),
-                                ],
-                              ),
+                                  child: const Icon(
+                                    Icons.event,
+                                    size: 40,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+
+                                const SizedBox(width: 10),
+
+                                // Event Name
+                                CustomText.TextSemiBold(
+                                  event.eventName.toString(),
+                                  color: AppColors.blackColor,
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              );
-            }
-          },
-        ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              },
+            );
+          }
+        },
       ),
     );
   }

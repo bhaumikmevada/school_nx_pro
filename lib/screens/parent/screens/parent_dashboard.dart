@@ -189,7 +189,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
         parentDashboardProvider.getStudentDetails(),
         holidayProvider.getHoliday(),
         homeworkProvider.fetchHomework(studentId),
-        schoolCircularProvider.getSchoolCircular(),
+        // schoolCircularProvider.getSchoolCircular(),
         _loadEventData(),
       ]);
     } catch (e) {
@@ -341,7 +341,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
     parentDashboardProvider.getStudentDetails();
     holidayProvider.getHoliday();
     homeworkProvider.fetchHomework(studentId);
-    schoolCircularProvider.getSchoolCircular();
+    // schoolCircularProvider.getSchoolCircular();
     _loadEventData();
 
     if (mounted) {
@@ -1553,6 +1553,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
     BuildContext context,
     ParentDashboardProvider provider, String studentName,
   ) {
+
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(
@@ -1590,22 +1591,23 @@ class _ParentDashboardState extends State<ParentDashboard> {
                       CustomText.TextMedium(
                           "Net Due",
                       ),
-                      student.studentDetails?.totalDue.remainingAmount.toString() == null ?
+                      student.studentDetails?.feeData.remainingAmount.toString() == null ?
                           Container() :
                       CustomText.TextMedium(
-                        "₹ ${student.studentDetails?.totalDue.remainingAmount.toString()}",
+                        "₹ ${student.studentDetails?.feeData.remainingAmount.toString()}",
                       ),
                     ],
                   ),
                 ),
                 GestureDetector(
                   onTap: () {
-                    debugPrint("Student Details : ${student.studentDetails}");
+                    debugPrint("Student Details : ${student.studentDetails?.profileData}");
 
                     showFeesPaymentPopup(
                       context,
                       provider,
-                      "",
+                      ""
+                      // "${student.studentDetails?.feeData.remainingAmount.toString()}",
                         // student.studentDetails?.totalDue.remainingAmount.toString()
                     );
                   },
@@ -1614,7 +1616,8 @@ class _ParentDashboardState extends State<ParentDashboard> {
                     margin: EdgeInsets.only(right: 10),
                     width: MediaQuery.of(context).size.width / 4.3,
                     decoration: const BoxDecoration(
-                      color: AppColors.blue,
+                      // color: AppColors.blue,
+                      color: AppColors.textHintColor,
                       borderRadius: BorderRadius.all(
                         Radius.circular(25),
                       ),
@@ -1858,7 +1861,8 @@ class _ParentDashboardState extends State<ParentDashboard> {
 
     if (result == "success") {
       final studentName =
-          provider.studentDetails?.studentDetails.studentName ?? "Student";
+          provider.studentDetails?.profileData.name
+              ?? "Student";
       final transactionId = "TXN${DateTime.now().millisecondsSinceEpoch}";
 
       await generateFeeReceipt(

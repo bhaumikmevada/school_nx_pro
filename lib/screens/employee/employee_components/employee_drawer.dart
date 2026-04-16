@@ -123,196 +123,198 @@ class _EmployeeDrawerState extends State<EmployeeDrawer> {
           ),
           SizedBox(
             height: MediaQuery.of(context).size.height / 1.4,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _buildListTile(
-                  context,
-                  icon: AppIcons.attendance,
-                  title: "Attendance",
-                  page: const EmployeeAttendanceScreen(),
-                ),
-                _buildListTile(
-                  context,
-                  icon: AppIcons.homeWork,
-                  title: "Home Work",
-                  page: const HomeworkScreen(userType: UserType.employee),
-                ),
-                _buildListTile(
-                  context,
-                  icon: AppIcons.schoolCircular,
-                  title: "Events",
-                  page: const EmployeeEventScreen(userType: UserType.employee),
-                ),
-                _buildListTile(
-                  context,
-                  icon: AppIcons.holidays,
-                  title: "Holidays",
-                  page: const EmployeeHolidayScreen(userType: UserType.employee),
-                ),
-                _buildListTile(
-                  context,
-                  icon: AppIcons.gallery,
-                  title: "Gallery",
-                  page: const EmployeeGalleryScreen(),
-                ),
-                _buildListTile(
-                  context,
-                  icon: AppIcons.rules,
-                  title: "Rules & Regulations",
-                  page: const RulesRegulationScreen(),
-                ),
-                Column(
-                  children: [
-                    GestureDetector(
-                      onTap: () {
-                        SafeLogout.logout().then((value) {
-                          Navigator.pushAndRemoveUntil(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const LoginScreen(),
-                            ),
-                            (route) => false,
-                          );
-                        });
-                      },
-                      child: ListTile(
-                        leading: SizedBox(
-                          height: 30,
-                          width: 30,
-                          child: Image.asset(AppIcons.logout),
-                        ),
-                        title: Text(
-                          "Log Out",
-                          style: boldBlack.copyWith(fontSize: 18),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _buildListTile(
+                    context,
+                    icon: AppIcons.attendance,
+                    title: "Attendance",
+                    page: const EmployeeAttendanceScreen(),
+                  ),
+                  _buildListTile(
+                    context,
+                    icon: AppIcons.homeWork,
+                    title: "Home Work",
+                    page: HomeworkScreen(userType: UserType.employee),
+                  ),
+                  _buildListTile(
+                    context,
+                    icon: AppIcons.schoolCircular,
+                    title: "Events",
+                    page: const EmployeeEventScreen(userType: UserType.employee),
+                  ),
+                  _buildListTile(
+                    context,
+                    icon: AppIcons.holidays,
+                    title: "Holidays",
+                    page: const EmployeeHolidayScreen(userType: UserType.employee),
+                  ),
+                  _buildListTile(
+                    context,
+                    icon: AppIcons.gallery,
+                    title: "Gallery",
+                    page: const EmployeeGalleryScreen(),
+                  ),
+                  _buildListTile(
+                    context,
+                    icon: AppIcons.rules,
+                    title: "Rules & Regulations",
+                    page: const RulesRegulationScreen(),
+                  ),
+                  Column(
+                    children: [
+                      GestureDetector(
+                        onTap: () {
+                          SafeLogout.logout().then((value) {
+                            Navigator.pushAndRemoveUntil(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const LoginScreen(),
+                              ),
+                              (route) => false,
+                            );
+                          });
+                        },
+                        child: ListTile(
+                          leading: SizedBox(
+                            height: 30,
+                            width: 30,
+                            child: Image.asset(AppIcons.logout),
+                          ),
+                          title: Text(
+                            "Log Out",
+                            style: boldBlack.copyWith(fontSize: 18),
+                          ),
                         ),
                       ),
-                    ),
-                    Consumer<AuthProvider>(
-                      builder: (context, authProvider, child) {
-                        // Only show switch if user has both roles
-                        if (!authProvider.hasParentRole || !authProvider.hasEmployeeRole) {
-                          return const SizedBox.shrink();
-                        }
-
-                        final isParent = authProvider.userType.toLowerCase() == 'parent';
-
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 15),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                "Employee",
-                                style: boldBlack.copyWith(fontSize: 18),
-                              ),
-                              Switch(
-                                activeColor: AppColors.blue,
-                                value: isParent,
-                                onChanged: (value) async {
-                                  // value is true when switching to Parent, false when switching to Employee
-                                  if (value) {
-                                    // Switching to Parent role
-                                    final success = await authProvider.switchRole('parent');
-                                    if (success && context.mounted) {
-                                      // Navigate to SelectStudentScreen
-                                      final loginDataString = await MySharedPreferences.instance
-                                          .getStringValue('loginRequestData');
-                                      if (loginDataString != null) {
-                                        try {
-                                          final loginData = json.decode(loginDataString) as Map<String, dynamic>;
-                                          // Get children from authProvider or SharedPreferences
-                                          List<dynamic> children = authProvider.children.isNotEmpty
-                                              ? authProvider.children
-                                              : [];
-                                          if (children.isEmpty) {
-                                            final childrenString = await MySharedPreferences.instance
-                                                .getStringValue('childrenList');
-                                            if (childrenString != null) {
-                                              try {
-                                                children = json.decode(childrenString);
-                                              } catch (e) {
-                                                children = [];
+                      Consumer<AuthProvider>(
+                        builder: (context, authProvider, child) {
+                          // Only show switch if user has both roles
+                          if (!authProvider.hasParentRole || !authProvider.hasEmployeeRole) {
+                            return const SizedBox.shrink();
+                          }
+              
+                          final isParent = authProvider.userType.toLowerCase() == 'parent';
+              
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 15),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  "Employee",
+                                  style: boldBlack.copyWith(fontSize: 18),
+                                ),
+                                Switch(
+                                  activeColor: AppColors.blue,
+                                  value: isParent,
+                                  onChanged: (value) async {
+                                    // value is true when switching to Parent, false when switching to Employee
+                                    if (value) {
+                                      // Switching to Parent role
+                                      final success = await authProvider.switchRole('parent');
+                                      if (success && context.mounted) {
+                                        // Navigate to SelectStudentScreen
+                                        final loginDataString = await MySharedPreferences.instance
+                                            .getStringValue('loginRequestData');
+                                        if (loginDataString != null) {
+                                          try {
+                                            final loginData = json.decode(loginDataString) as Map<String, dynamic>;
+                                            // Get children from authProvider or SharedPreferences
+                                            List<dynamic> children = authProvider.children.isNotEmpty
+                                                ? authProvider.children
+                                                : [];
+                                            if (children.isEmpty) {
+                                              final childrenString = await MySharedPreferences.instance
+                                                  .getStringValue('childrenList');
+                                              if (childrenString != null) {
+                                                try {
+                                                  children = json.decode(childrenString);
+                                                } catch (e) {
+                                                  children = [];
+                                                }
                                               }
                                             }
-                                          }
-                                          if (context.mounted) {
-                                            Navigator.pushAndRemoveUntil(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (context) => SelectStudentScreen(
-                                                  children: children,
-                                                  loginData: loginData,
+                                            if (context.mounted) {
+                                              Navigator.pushAndRemoveUntil(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder: (context) => SelectStudentScreen(
+                                                    children: children,
+                                                    loginData: loginData,
+                                                  ),
                                                 ),
-                                              ),
-                                              (route) => false,
-                                            );
+                                                (route) => false,
+                                              );
+                                            }
+                                          } catch (e) {
+                                            // Handle error
                                           }
-                                        } catch (e) {
-                                          // Handle error
+                                        }
+                                      }
+                                    } else {
+                                      // Switching to Employee role
+                                      final success = await authProvider.switchRole('employee');
+                                      if (success && context.mounted) {
+                                        // Navigate to SelectInstituteScreen
+                                        final loginDataString = await MySharedPreferences.instance
+                                            .getStringValue('loginRequestData');
+                                        if (loginDataString != null) {
+                                          try {
+                                            final loginData = json.decode(loginDataString) as Map<String, dynamic>;
+                                            // Use instituteNames from authProvider directly
+                                            final institutes = authProvider.instituteNames;
+                                            // Get children from authProvider or SharedPreferences
+                                            List<dynamic> children = authProvider.children.isNotEmpty
+                                                ? authProvider.children
+                                                : [];
+                                            if (children.isEmpty) {
+                                              final childrenString = await MySharedPreferences.instance
+                                                  .getStringValue('childrenList');
+                                              if (childrenString != null) {
+                                                try {
+                                                  children = json.decode(childrenString);
+                                                } catch (e) {
+                                                  children = [];
+                                                }
+                                              }
+                                            }
+                                            if (context.mounted) {
+                                              Navigator.pushAndRemoveUntil(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder: (context) => SelectInstituteScreen(
+                                                    institutes: institutes,
+                                                    children: children,
+                                                    loginData: loginData,
+                                                  ),
+                                                ),
+                                                (route) => false,
+                                              );
+                                            }
+                                          } catch (e) {
+                                            // Handle error
+                                          }
                                         }
                                       }
                                     }
-                                  } else {
-                                    // Switching to Employee role
-                                    final success = await authProvider.switchRole('employee');
-                                    if (success && context.mounted) {
-                                      // Navigate to SelectInstituteScreen
-                                      final loginDataString = await MySharedPreferences.instance
-                                          .getStringValue('loginRequestData');
-                                      if (loginDataString != null) {
-                                        try {
-                                          final loginData = json.decode(loginDataString) as Map<String, dynamic>;
-                                          // Use instituteNames from authProvider directly
-                                          final institutes = authProvider.instituteNames;
-                                          // Get children from authProvider or SharedPreferences
-                                          List<dynamic> children = authProvider.children.isNotEmpty
-                                              ? authProvider.children
-                                              : [];
-                                          if (children.isEmpty) {
-                                            final childrenString = await MySharedPreferences.instance
-                                                .getStringValue('childrenList');
-                                            if (childrenString != null) {
-                                              try {
-                                                children = json.decode(childrenString);
-                                              } catch (e) {
-                                                children = [];
-                                              }
-                                            }
-                                          }
-                                          if (context.mounted) {
-                                            Navigator.pushAndRemoveUntil(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (context) => SelectInstituteScreen(
-                                                  institutes: institutes,
-                                                  children: children,
-                                                  loginData: loginData,
-                                                ),
-                                              ),
-                                              (route) => false,
-                                            );
-                                          }
-                                        } catch (e) {
-                                          // Handle error
-                                        }
-                                      }
-                                    }
-                                  }
-                                },
-                              ),
-                              Text(
-                                "Parent",
-                                style: boldBlack.copyWith(fontSize: 18),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ],
+                                  },
+                                ),
+                                Text(
+                                  "Parent",
+                                  style: boldBlack.copyWith(fontSize: 18),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ],

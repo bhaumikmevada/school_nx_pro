@@ -1,94 +1,134 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:school_nx_pro/provider/parent_homework_provider.dart';
 import 'package:school_nx_pro/services/homework_sync_service.dart';
+import '../../../theme/app_colors.dart';
+import '../../../theme/font_theme.dart';
+import '../../../utils/api_urls.dart';
 import '../../../utils/enum.dart';
+import '../../../utils/my_sharepreferences.dart';
+import '../../../utils/utils.dart';
 import '../parent_components/parent_appbar.dart';
 
-class ParentHomeworkScreen extends StatelessWidget {
+class ParentHomeworkScreen extends StatefulWidget {
   final UserType userType;
   final String studentId;
 
-  const ParentHomeworkScreen({super.key, required this.userType, required this.studentId});
+  ParentHomeworkScreen({super.key,required this.userType,required this.studentId});
+
+  @override
+  State<ParentHomeworkScreen> createState() => _ParentHomeworkScreenState();
+}
+
+class _ParentHomeworkScreenState extends State<ParentHomeworkScreen> {
+
+  List<dynamic> homeworkList = [];
+  bool isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    fetchHomeworkList();
+  }
+
+  Future<void> fetchHomeworkList() async {
+    setState(() => isLoading = true);
+    String? instituteId =
+        await MySharedPreferences.instance.getStringValue("instituteId") ?? "10085";
+
+    try {
+      final response = await http.get(
+        Uri.parse(
+          "${ApiUrls.baseUrl}HomeworkUpload1/list?instituteId=$instituteId",
+        ),
+      );
+
+      if (response.statusCode == 200) {
+        final jsonData = jsonDecode(response.body);
+
+        List<dynamic> tempList = [];
+
+        if (jsonData is Map<String, dynamic>) {
+          if (jsonData['data'] is List) {
+            tempList = jsonData['data'];
+          } else if (jsonData['result'] is List) {
+            tempList = jsonData['result'];
+          } else if (jsonData['homework'] is List) {
+            tempList = jsonData['homework'];
+          }
+        } else if (jsonData is List) {
+          tempList = jsonData;
+        }
+
+        setState(() => homeworkList = tempList);
+      }
+    } catch (e) {
+      debugPrint("Error fetching homework list: $e");
+    } finally {
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<HomeworkProviders>(context, listen: false);
-
-    // Fetch homework when screen opens
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      provider.fetchHomework(studentId, forceRefresh: true);
-    });
-
     return Scaffold(
-      appBar: const ParentAppbar(title: "Home Work"),
-      body: Consumer<HomeworkProviders>(
-        builder: (context, homeworkProviders, child) {
-          final homeworkList = homeworkProviders.homeworkList;
+      appBar: AppBar(
+        backgroundColor: AppColors.bgColor,
+        title: Text(
+          "Home Work",
+          style: boldBlack.copyWith(fontSize: 18),
+        ),
+        actions: [
+        ],
+      ),
 
-          if (homeworkProviders.isLoading && homeworkList.isEmpty) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (homeworkList.isEmpty) {
-            return RefreshIndicator(
-              onRefresh: () =>
-                  homeworkProviders.fetchHomework(studentId, forceRefresh: true),
-              child: ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                children: const [
-                  SizedBox(height: 160),
-                  Center(child: Text("No homework found")),
-                ],
-              ),
-            );
-          }
-
-          return RefreshIndicator(
-            onRefresh: () =>
-                homeworkProviders.fetchHomework(studentId, forceRefresh: true),
-            child: ListView.separated(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(12),
-              itemBuilder: (context, index) {
-                final hw = homeworkList[index];
-                return _HomeworkCard(homework: hw, studentId: studentId);
-              },
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
-              itemCount: homeworkList.length,
-            ),
-          );
-        },
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : homeworkList.isEmpty
+          ? const Center(child: Text("No Homework Found"))
+          : RefreshIndicator(
+        onRefresh: fetchHomeworkList,
+        child: ListView.separated(
+          padding: const EdgeInsets.all(12),
+          itemCount: homeworkList.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 12),
+          itemBuilder: (context, index) {
+            return _HomeworkCardWidget(homework: homeworkList[index]);
+          },
+        ),
       ),
     );
   }
 }
+class _HomeworkCardWidget extends StatelessWidget {
+  final dynamic homework;
 
-class _HomeworkCard extends StatelessWidget {
-  final HomeworkItem homework;
-  final String studentId;
-
-  const _HomeworkCard({required this.homework, required this.studentId});
+  const _HomeworkCardWidget({required this.homework});
 
   @override
   Widget build(BuildContext context) {
     final headerColor = Theme.of(context).primaryColor;
+
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        color: Colors.grey.shade100,
-        boxShadow: const [
+        color: Colors.white,
+        boxShadow: [
           BoxShadow(
-            color: Colors.black12,
-            blurRadius: 4,
-            offset: Offset(0, 3),
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Purple Header
           Container(
             padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
             decoration: BoxDecoration(
@@ -103,7 +143,7 @@ class _HomeworkCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    homework.subjectName,
+                    homework['subjectName']?.toString() ?? homework['subject']?.toString() ?? 'Subject',
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
@@ -114,29 +154,27 @@ class _HomeworkCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  homework.formattedAssignedDate,
+                  Utils.convertDateFormat(inputDate: homework['homeWorkDate']?.toString() ?? homework['fromDate']?.toString() ?? '',
+                      inputFormat: "yyyy-MM-dd'T'HH:mm:ss", outputFormat: "dd/MM/yyyy"),
                   style: const TextStyle(
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w600,
                     fontSize: 14,
                     color: Colors.white,
                   ),
                 ),
-                const SizedBox(width: 8),
-                _SyncStatusIcon(syncStatus: homework.syncStatus),
               ],
             ),
           ),
+          // White Body
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _infoRow("Title", homework.homeWorkName),
-                _infoRow("Due On", homework.formattedDueDate),
+                _infoRow("Title", homework['homeWorkName']?.toString() ?? homework['title']?.toString() ?? '-'),
+                _infoRow("Due On", homework['homeWorkDueOnDate']?.toString() ?? homework['toDate']?.toString() ?? '-'),
                 _attachmentRow(context, homework),
-                _infoRow("Description", homework.homeWorkDescription),
-                // if (homework.syncStatus != SyncStatus.synced)
-                //   _syncStatusRow(context, homework),
+                _infoRow("Description", homework['homeWorkDescription']?.toString() ?? ''),
               ],
             ),
           ),
@@ -153,346 +191,77 @@ class _HomeworkCard extends StatelessWidget {
         children: [
           Expanded(
             flex: 2,
-            child: Text(
-              "$label :",
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
+            child: Text("$label :", style: const TextStyle(fontWeight: FontWeight.w600)),
           ),
           Expanded(
             flex: 4,
-            child: Text(
-              value.isEmpty ? "-" : value,
-              maxLines: label == "Description" ? 4 : 2,
-              overflow: TextOverflow.ellipsis,
-            ),
+            child: Text(value.isEmpty ? "-" : value, maxLines: 3, overflow: TextOverflow.ellipsis),
           ),
         ],
       ),
     );
   }
 
-  Widget _attachmentRow(BuildContext context, HomeworkItem hw) {
-    final attachment = hw.attachmentUrl ?? hw.attachmentPath;
-    if (attachment == null || attachment.isEmpty) {
+  // ================== VIEW ATTACHMENT - CALL DOWNLOAD API ==================
+  Widget _attachmentRow(BuildContext context, dynamic hw) {
+    final String? homeWorkId = hw['homeWorkId']?.toString();
+
+    // If no homeworkId or attachment, show "-"
+    if (homeWorkId == null || homeWorkId.isEmpty) {
       return _infoRow("Attachment", "-");
     }
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           const Expanded(
             flex: 2,
-            child: Text(
-              "Attachment :",
-              style: TextStyle(fontWeight: FontWeight.w600),
-            ),
+            child: Text("Attachment :", style: TextStyle(fontWeight: FontWeight.w600)),
           ),
           Expanded(
             flex: 4,
             child: InkWell(
               onTap: () async {
-                final uri = attachment.startsWith('http')
-                    ? Uri.parse(attachment)
-                    : Uri.file(attachment);
-                if (await canLaunchUrl(uri)) {
-                  await launchUrl(uri, mode: LaunchMode.externalApplication);
-                } else {
-                  if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Unable to open attachment")),
-                  );
-                }
-              },
-              child: const Text(
-                "📁 View Attachment",
-                style: TextStyle(
-                  color: Colors.blue,
-                  decoration: TextDecoration.underline,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+                final downloadUrl = "${ApiUrls.baseUrl}HomeworkUpload1/download/$homeWorkId?homeworkId=$homeWorkId";
 
-  Widget _syncStatusRow(BuildContext context, HomeworkItem homework) {
-    final syncService = HomeworkSyncService();
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Row(
-        children: [
-          Expanded(
-            child: Row(
-              children: [
-                _SyncStatusIcon(syncStatus: homework.syncStatus),
-                const SizedBox(width: 8),
-                Text(
-                  _getSyncStatusText(homework.syncStatus),
-                  style: TextStyle(
-                    color: _getSyncStatusColor(homework.syncStatus),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (homework.syncStatus == SyncStatus.failed ||
-              homework.syncStatus == SyncStatus.pending)
-            TextButton.icon(
-              onPressed: () async {
-                if (homework.tempLocalId != null) {
-                  final success = await syncService.retryFailedSync(
-                    homework.tempLocalId!,
-                  );
+                final uri = Uri.parse(downloadUrl);
+
+                try {
+                  if (await canLaunchUrl(uri)) {
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  } else {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Could not open attachment")),
+                      );
+                    }
+                  }
+                } catch (e) {
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(success
-                            ? "Sync retry successful!"
-                            : "Sync retry failed. Please check your connection."),
-                      ),
+                      SnackBar(content: Text("Error opening file: $e")),
                     );
-                    // Refresh the list
-                    final provider =
-                        Provider.of<HomeworkProviders>(context, listen: false);
-                    await provider.fetchHomework(studentId, forceRefresh: true);
                   }
                 }
               },
-              icon: const Icon(Icons.refresh, size: 16),
-              label: const Text("Retry"),
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                minimumSize: const Size(0, 0),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    "📁 View Attachment",
+                    style: TextStyle(
+                      color: Colors.blue,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                ],
               ),
             ),
+          ),
         ],
       ),
     );
   }
-
-  String _getSyncStatusText(SyncStatus status) {
-    switch (status) {
-      case SyncStatus.synced:
-        return "Synced";
-      case SyncStatus.syncing:
-        return "Syncing...";
-      case SyncStatus.pending:
-        return "Pending sync";
-      case SyncStatus.failed:
-        return "Sync failed";
-    }
-  }
-
-  Color _getSyncStatusColor(SyncStatus status) {
-    switch (status) {
-      case SyncStatus.synced:
-        return Colors.green;
-      case SyncStatus.syncing:
-        return Colors.blue;
-      case SyncStatus.pending:
-        return Colors.orange;
-      case SyncStatus.failed:
-        return Colors.red;
-    }
-  }
 }
-
-class _SyncStatusIcon extends StatelessWidget {
-  final SyncStatus syncStatus;
-
-  const _SyncStatusIcon({required this.syncStatus});
-
-  @override
-  Widget build(BuildContext context) {
-    switch (syncStatus) {
-      case SyncStatus.synced:
-        return const Icon(Icons.check_circle, color: Colors.green, size: 18);
-      case SyncStatus.syncing:
-        return const SizedBox(
-          width: 18,
-          height: 18,
-          child: CircularProgressIndicator(strokeWidth: 2),
-        );
-      case SyncStatus.pending:
-        return const Icon(Icons.schedule, color: Colors.orange, size: 18);
-      case SyncStatus.failed:
-        return const Icon(Icons.error, color: Colors.red, size: 18);
-    }
-  }
-}
-
-// class ParentHomeworkScreen extends StatefulWidget {
-//   final UserType userType;
-//   final String studentId;
-//
-//   const ParentHomeworkScreen({super.key, required this.userType, required this.studentId});
-//
-//   @override
-//   State<ParentHomeworkScreen> createState() => _ParentHomeworkScreenState();
-// }
-// class _ParentHomeworkScreenState extends State<ParentHomeworkScreen> {
-//   Map<String, dynamic>? homeworkData;
-//   bool isLoading = true;
-//
-//   @override
-//   void initState() {
-//     super.initState();
-//     fetchHomework();
-//   }
-//
-//   Future<void> fetchHomework() async {
-//     final uri = Uri.parse(
-//       "https://api.schoolnxpro.com/api/Homework/Id?admissionId=${widget.studentId}&instituteId=10085",
-//     );
-//
-//     try {
-//       final response = await http.get(uri);
-//       if (response.statusCode == 200) {
-//         final jsonData = json.decode(response.body);
-//         setState(() {
-//           homeworkData = jsonData['data'];
-//           isLoading = false;
-//         });
-//       } else {
-//         throw Exception("Failed to load homework");
-//       }
-//     } catch (e) {
-//       print("Error: $e");
-//       setState(() {
-//         isLoading = false;
-//       });
-//     }
-//   }
-//
-//   String formatDate(String dateStr) {
-//     final date = DateTime.parse(dateStr);
-//     return DateFormat('dd/MM/yyyy').format(date);
-//   }
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     print("Parent Homework Student ID :- ${widget.studentId}");
-//     final hw = homeworkData?['homework'];
-//
-//     return Scaffold(
-//       appBar: const ParentAppbar(title: "Home Work"),
-//       body: isLoading
-//           ? const Center(child: CircularProgressIndicator())
-//           : hw == null
-//           ? const Center(child: Text("No homework found"))
-//           : Container(
-//             height: 250,
-//         margin: const EdgeInsets.all(12),
-//         padding: const EdgeInsets.all(10),
-//         decoration: BoxDecoration(
-//           borderRadius: BorderRadius.circular(8),
-//           color: Colors.grey.shade100,
-//           boxShadow: const [
-//             BoxShadow(
-//               color: Colors.black12,
-//               blurRadius: 4,
-//               offset: Offset(0, 3),
-//             ),
-//           ],
-//         ),
-//         child: Column(
-//           crossAxisAlignment: CrossAxisAlignment.start,
-//           children: [
-//             // Header with subject and due date
-//             Container(
-//               padding: const EdgeInsets.symmetric(
-//                   vertical: 8, horizontal: 12),
-//               color: Colors.lightGreen,
-//               child: Row(
-//                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-//                 children: [
-//                   Text(
-//                     homeworkData!['subjectName'] ?? '',
-//                     style: const TextStyle(
-//                         fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
-//                   ),
-//                   Text(
-//                     formatDate(hw['homeWorkDate']),
-//                     style: const TextStyle(
-//                         fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
-//                   ),
-//                 ],
-//               ),
-//             ),
-//             const SizedBox(height: 12),
-//
-//             // Title
-//             _rowItem("Title", hw['homeWorkName']),
-//             _rowItem("Due On", formatDate(hw['homeWorkDueOnDate'])),
-//
-//             // Attachment (can open a dummy PDF file)
-//             _rowItemPDF(
-//               "Attachment",
-//               "📁 Attachment_${hw['homeWorkId']}${hw['extensions']}",
-//             ),
-//
-//             _rowItem("Description", hw['homeWorkDescription']),
-//           ],
-//         ),
-//       ),
-//     );
-//   }
-//
-//   Widget _rowItem(String title, String? value) {
-//     return Padding(
-//       padding: const EdgeInsets.symmetric(vertical: 4.0),
-//       child: Row(
-//         children: [
-//           Expanded(flex: 2, child: Text("$title :", style: const TextStyle(fontWeight: FontWeight.w600))),
-//           Expanded(flex: 4, child: Text(value ?? "-")),
-//         ],
-//       ),
-//     );
-//   }
-//
-//   _rowItemPDF(String title, String? value) {
-//     if (title == "Attachment") {
-//       final pdfUrl = "https://schoolnx.com/SchoolWebsiteImages/Institute10085/HomeWork/Attachment_40113.pdf";
-//
-//       return Padding(
-//         padding: const EdgeInsets.symmetric(vertical: 4.0),
-//         child: Row(
-//           children: [
-//             const Expanded(
-//               flex: 2,
-//               child: Text("Attachment :",
-//                   style: TextStyle(fontWeight: FontWeight.w600)),
-//             ),
-//             Expanded(
-//               flex: 4,
-//               child: InkWell(
-//                 onTap: () async {
-//                   final uri = Uri.parse(pdfUrl);
-//                   if (await canLaunchUrl(uri)) {
-//                     await launchUrl(uri, mode: LaunchMode.externalApplication);
-//                   } else {
-//                     ScaffoldMessenger.of(context).showSnackBar(
-//                       const SnackBar(content: Text("PDF not open")),
-//                     );
-//                   }
-//                 },
-//                 child: Text(
-//                   value ?? "Attachment",
-//                   style: const TextStyle(
-//                     color: Colors.blue,
-//                     decoration: TextDecoration.underline,
-//                   ),
-//                 ),
-//               ),
-//             ),
-//           ],
-//         ),
-//       );
-//     }
-//   }
-// }

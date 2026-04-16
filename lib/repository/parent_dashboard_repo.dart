@@ -17,13 +17,13 @@ class ParentDashboardRepo extends BaseRepository {
 
     String? studentId =
         await MySharedPreferences.instance.getStringValue("studentId");
-    String? instituteId = await MySharedPreferences.instance.getStringValue("instituteId");
+    String? instituteId = await MySharedPreferences.instance.getStringValue("instituteId") ?? "10085";
 
     log("Using studentId: $studentId", name: "🚀 getStudentDetailsAPI()");    
 
     try {
       final response = await getHttp(
-          api: "https://api.schoolnxpro.com/api/Dashboard?studentId=$studentId&instituteId=$instituteId"
+          api: "Dashboard?studentId=$studentId&instituteId=$instituteId"
       );
       log(response.body, name: 'response getStudentDetailsAPI');
 

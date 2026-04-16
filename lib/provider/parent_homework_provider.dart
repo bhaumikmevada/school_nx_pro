@@ -6,6 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:school_nx_pro/services/homework_sync_service.dart';
 import 'package:school_nx_pro/utils/my_sharepreferences.dart';
 
+import '../utils/api_urls.dart';
+
 class HomeworkItem {
   final String subjectName;
   final String homeWorkName;
@@ -14,9 +16,9 @@ class HomeworkItem {
   final String homeWorkDescription;
   final String homeWorkId;
   final String extensions;
-  final String? attachmentPath;
-  final SyncStatus syncStatus;
-  final String? tempLocalId;
+  final String? fileUrl;
+  // final SyncStatus syncStatus;
+  // final String? tempLocalId;
 
   HomeworkItem({
     required this.subjectName,
@@ -26,9 +28,9 @@ class HomeworkItem {
     required this.homeWorkDescription,
     required this.homeWorkId,
     required this.extensions,
-    this.attachmentPath,
-    this.syncStatus = SyncStatus.synced,
-    this.tempLocalId,
+    this.fileUrl,
+    // this.syncStatus = SyncStatus.synced,
+    // this.tempLocalId,
   });
 
   factory HomeworkItem.fromApi(Map<String, dynamic> json) {
@@ -41,8 +43,8 @@ class HomeworkItem {
       homeWorkDescription: hw['homeWorkDescription'] ?? '',
       homeWorkId: (hw['homeWorkId'] ?? '').toString(),
       extensions: hw['extensions'] ?? '',
-      attachmentPath: hw['attachment'] as String?,
-      syncStatus: SyncStatus.synced,
+      fileUrl: hw['fileUrl'] as String?,
+      // syncStatus: SyncStatus.synced,
     );
   }
 
@@ -64,9 +66,9 @@ class HomeworkItem {
       homeWorkDescription: map['homeWorkDescription'] ?? map['description'] ?? '',
       homeWorkId: (map['homeWorkId'] ?? map['id'] ?? '').toString(),
       extensions: map['extensions'] ?? map['extension'] ?? '',
-      attachmentPath: map['attachment'] as String?,
-      syncStatus: status,
-      tempLocalId: map['tempLocalId'] as String?,
+      fileUrl: map['fileUrl'] as String?,
+      // syncStatus: status,
+      // tempLocalId: map['tempLocalId'] as String?,
     );
   }
 
@@ -79,9 +81,9 @@ class HomeworkItem {
       'homeWorkDescription': homeWorkDescription,
       'homeWorkId': homeWorkId,
       'extensions': extensions,
-      'attachment': attachmentPath,
-      'syncStatus': syncStatus.name,
-      if (tempLocalId != null) 'tempLocalId': tempLocalId,
+      'fileUrl': fileUrl,
+      // 'syncStatus': syncStatus.name,
+      // if (tempLocalId != null) 'tempLocalId': tempLocalId,
     };
   }
 
@@ -195,10 +197,11 @@ class HomeworkProviders extends ChangeNotifier {
           if (!merged.containsKey(item.homeWorkId)) {
             merged[item.homeWorkId] = item;
           }
-        } else if (item.tempLocalId != null && item.syncStatus != SyncStatus.synced) {
-          // Include unsynced local items (pending/failed sync)
-          merged[item.tempLocalId!] = item;
         }
+        // else if (item.tempLocalId != null && item.syncStatus != SyncStatus.synced) {
+        //   // Include unsynced local items (pending/failed sync)
+        //   merged[item.tempLocalId!] = item;
+        // }
       }
 
       // Priority 3: Locally saved items (from HomeworkScreen's homeworkList)
@@ -210,12 +213,13 @@ class HomeworkProviders extends ChangeNotifier {
           if (!merged.containsKey(item.homeWorkId)) {
             merged[item.homeWorkId] = item;
           }
-        } else if (item.tempLocalId != null) {
-          // Unsynced items - add if not already present
-          if (!merged.containsKey(item.tempLocalId!)) {
-            merged[item.tempLocalId!] = item;
-          }
         }
+        // else if (item.tempLocalId != null) {
+        //   // Unsynced items - add if not already present
+        //   if (!merged.containsKey(item.tempLocalId!)) {
+        //     merged[item.tempLocalId!] = item;
+        //   }
+        // }
       }
 
       // Priority 4: Items from current _homeworkList (fallback)
@@ -223,11 +227,12 @@ class HomeworkProviders extends ChangeNotifier {
       for (final item in _homeworkList) {
         if (item.homeWorkId.isNotEmpty && !merged.containsKey(item.homeWorkId)) {
           merged[item.homeWorkId] = item;
-        } else if (item.homeWorkId.isEmpty && item.tempLocalId != null) {
-          if (!merged.containsKey(item.tempLocalId!)) {
-            merged[item.tempLocalId!] = item;
-          }
         }
+        // else if (item.homeWorkId.isEmpty && item.tempLocalId != null) {
+        //   if (!merged.containsKey(item.tempLocalId!)) {
+        //     merged[item.tempLocalId!] = item;
+        //   }
+        // }
       }
 
       _homeworkList.clear();
@@ -250,13 +255,17 @@ class HomeworkProviders extends ChangeNotifier {
   }
 
   /// Original API call logic (from HomeworkScreen)
+
   Future<List<HomeworkItem>> _fetchHomeworkFromOriginalAPI(
     String studentId,
     String instituteId,
   ) async {
     try {
+      // final uri = Uri.parse(
+      //   "https://api.schoolnxpro.com/api/Homework/Id?admissionId=$studentId&instituteId=$instituteId",
+      // );
       final uri = Uri.parse(
-        "https://api.schoolnxpro.com/api/Homework/Id?admissionId=$studentId&instituteId=$instituteId",
+        "${ApiUrls.baseUrl}HomeworkUpload1/list?instituteId=$instituteId",
       );
       final response = await http.get(uri);
 
