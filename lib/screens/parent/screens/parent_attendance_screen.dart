@@ -8,6 +8,7 @@ import 'package:school_nx_pro/provider/employee_attendance_provider.dart';
 import '../../../components/app_button.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/font_theme.dart';
+import '../../../utils/my_sharepreferences.dart';
 import '../../employee/screens/employee_attendance_screen.dart';
 import '../parent_components/parent_appbar.dart';
 
@@ -64,20 +65,33 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     final year = selectedMonth.year;
     final month = selectedMonth.month;
 
+    debugPrint("attendance studentId : ${widget.studentId}");
+
     final url = Uri.parse(
-      '${ApiUrls.baseUrl}Attendance/attendance/student/${widget.studentId}/monthly-summary?'
-          '&year=$year'
-          '&month=$month',
+      // '${ApiUrls.baseUrl}Attendance/attendance/student/${widget.studentId}/monthly-summary?'
+      '${ApiUrls.baseUrl}${ApiUrls.studentAttendanceUrl}?'
+          'year=$year'
+          '&month=$month''&student_id=${widget.studentId}',
+
+      // "http://103.97.47.241:8098/school_api/api/attendance/student?month=3&year=2026"
     );
 
     print("Fetching attendance: $url");
 
+    final token = await MySharedPreferences.instance.getStringValue("token") ?? "";
+    debugPrint("Fetching attendance token : $token");
     try {
-      final response = await http.get(url);
+      final response = await http.get(url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
 
+        debugPrint("response body : ${response.body} -> code : ${response.statusCode}");
         setState(() {
           absent = data['total_absent_days'] ?? 0;
           absentDateSet = Set<String>.from(data['absent_dates'] ?? []);
@@ -241,13 +255,13 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                             width: 45,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: isAbsent
-                                  ? Colors.red
+                              color: isAbsent || isSunday
+                                  ? Colors.red.withOpacity(0.5)
                                   : isSunday
                                   ? Colors.red.withOpacity(0.2)
                                   : Colors.green,
                               border: Border.all(
-                                color: isAbsent
+                                color: isAbsent || isSunday
                                     ? Colors.red.shade700
                                     : Colors.green.shade700,
                                 width: 2,
@@ -256,7 +270,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                             child: Center(
                               child: Text(
                                 day.toString().padLeft(2, '0'),
-                                style: const TextStyle(
+                                style:  TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.bold,
                                   fontSize: 16,

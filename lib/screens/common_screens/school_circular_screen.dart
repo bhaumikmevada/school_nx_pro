@@ -55,14 +55,21 @@ class _EventScreenState extends State<EventScreen> {
 
       String? instituteId = await MySharedPreferences.instance.getStringValue("instituteId");
       instituteId ??= "10085";
+      final token = await MySharedPreferences.instance.getStringValue("token") ?? "";
 
       final url = Uri.parse(
-        "${ApiUrls.baseUrl}Event/GetEventCalendar?instituteId=$instituteId&year=$year&month=$month",
+        // "${ApiUrls.baseUrl}Event/GetEventCalendar?instituteId=$instituteId&year=$year&month=$month",
+        "${ApiUrls.baseUrl}events/my?instituteId=$instituteId&year=$year&month=$month",
       );
 
       debugPrint("📡 Calling GetEventCalendar: $url");
 
-      final response = await client.get(url);
+      final response = await client.get(url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
 
       if (response.statusCode == 200) {
         final eventListModel = eventListModelFromJson(response.body);

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:school_nx_pro/theme/app_colors.dart';
 import '../../../components/app_button.dart';
+import '../../../utils/api_urls.dart';
 import '../parent_components/parent_appbar.dart';
 import '../../../utils/my_sharepreferences.dart';
 
@@ -88,9 +89,18 @@ class _ParentResultScreenState extends State<ParentResultScreen> {
       return;
     }
 
-    final url = Uri.parse("https://api.schoolnxpro.com/api/TermName?institudeId=$instituteId");
+    final url = Uri.parse("${ApiUrls.baseUrl}terms?institudeId=$instituteId");
     try {
-      final response = await http.get(url);
+      debugPrint("terms Url : ${ApiUrls.baseUrl}terms?institudeId=$instituteId");
+      final accessToken = await MySharedPreferences.instance.getStringValue("token");
+
+      final response = await http.get(url,
+        headers: {
+          'Content-Type': 'application/json',
+          if (accessToken != null) 'Authorization': 'Bearer $accessToken'
+        },
+      );
+      debugPrint("terms response : ${response.body}");
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
         setState(() {
@@ -122,9 +132,17 @@ class _ParentResultScreenState extends State<ParentResultScreen> {
       return;
     }
 
-    final url = Uri.parse("https://api.schoolnxpro.com/api/ExamName?instituteId=$instituteId");
+    final url = Uri.parse("${ApiUrls.baseUrl}exams?instituteId=$instituteId");
     try {
-      final response = await http.get(url);
+
+      final accessToken = await MySharedPreferences.instance.getStringValue("token");
+
+      final response = await http.get(url,
+        headers: {
+          'Content-Type': 'application/json',
+          if (accessToken != null) 'Authorization': 'Bearer $accessToken'
+        },
+      );
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
         setState(() {
@@ -171,10 +189,16 @@ class _ParentResultScreenState extends State<ParentResultScreen> {
     }
 
     final url = Uri.parse(
-        "https://api.schoolnxpro.com/api/MarkSheet/marks/$studentId?instituteId=$instituteId&termId=$selectedTermId&examId=$selectedExamId");
+        "${ApiUrls.baseUrl}marksheet/marks/$studentId?instituteId=$instituteId&termId=$selectedTermId&examId=$selectedExamId");
 
     try {
-      final response = await http.get(url);
+      final accessToken = await MySharedPreferences.instance.getStringValue("token");
+      final response = await http.get(url,
+        headers: {
+          'Content-Type': 'application/json',
+          if (accessToken != null) 'Authorization': 'Bearer $accessToken'
+        },
+      );
       if (response.statusCode == 200) {
         final jsonData = json.decode(response.body);
         if (jsonData['success'] == true) {

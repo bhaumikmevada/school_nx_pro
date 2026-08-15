@@ -5,12 +5,15 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:school_nx_pro/screens/parent/screens/payment_webview_screen.dart';
+import '../../../utils/api_urls.dart';
+import '../../../utils/my_sharepreferences.dart';
 
 class ParentOldReceiptsScreen extends StatefulWidget {
   final String studentId;
   final String studentName;
   final String studentPhone;
   final String studentEmail;
+  final String financialYear;
 
   const ParentOldReceiptsScreen({
     super.key,
@@ -18,10 +21,12 @@ class ParentOldReceiptsScreen extends StatefulWidget {
     required this.studentName,
     required this.studentPhone,
     required this.studentEmail,
+    required this.financialYear,
   });
 
   @override
-  State<ParentOldReceiptsScreen> createState() => _ParentOldReceiptsScreenState();
+  State<ParentOldReceiptsScreen> createState() =>
+      _ParentOldReceiptsScreenState();
 }
 
 class _ParentOldReceiptsScreenState extends State<ParentOldReceiptsScreen> {
@@ -29,7 +34,6 @@ class _ParentOldReceiptsScreenState extends State<ParentOldReceiptsScreen> {
   Map<String, dynamic>? data;
   final TextEditingController payAmountController = TextEditingController();
   late final String _sessionYear;
-
   List<Map<String, dynamic>> receipts = [];
 
   @override
@@ -50,23 +54,50 @@ class _ParentOldReceiptsScreenState extends State<ParentOldReceiptsScreen> {
     if (mounted) {
       setState(() => loading = true);
     }
+
     const probeAmount = "1";
+
     final uri = Uri.parse(
-      "https://api.schoolnxpro.com/api/Payload/ProcessPayment/${widget.studentId}",
-    ).replace(queryParameters: {
-      "sessionYear": _sessionYear,
-      "paymentAmount": probeAmount,
-      "subAmount": probeAmount,
-    });
+      "${ApiUrls.baseUrl}fees/my?studentId=${widget.studentId}&"
+          "sessionYear=${widget.financialYear}&paymentAmount=$probeAmount&subAmount=$probeAmount",
+    );
+
+    debugPrint(
+      "payload ProcessPayment url : ${ApiUrls.baseUrl}fees/my?studentId=${widget.studentId}&"
+          "sessionYear=${widget.financialYear}&paymentAmount=$probeAmount&subAmount=$probeAmount",
+    );
 
     try {
-      final response = await http.post(uri);
+      final token = await MySharedPreferences.instance.getStringValue("token") ?? "";
+
+      final response = await http.get(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          if (token.isNotEmpty) 'Authorization': 'Bearer $token',
+        },
+      );
+
+      debugPrint("payload ProcessPayment response : ${response.body}");
+
       if (!mounted) return;
 
       if (response.statusCode == 200) {
         final decoded = json.decode(response.body) as Map<String, dynamic>;
+
+        // Handle both nested {"success":true,"data":{...}} and flat responses
+        final Map<String, dynamic>? payload;
+        if (decoded['data'] is Map<String, dynamic>) {
+          payload = Map<String, dynamic>.from(decoded['data'] as Map);
+        } else if (decoded.containsKey('feeDetails') ||
+            decoded.containsKey('totalDue')) {
+          payload = decoded;
+        } else {
+          payload = null;
+        }
+
         setState(() {
-          data = decoded;
+          data = payload;
           loading = false;
         });
         payAmountController.clear();
@@ -84,12 +115,16 @@ class _ParentOldReceiptsScreenState extends State<ParentOldReceiptsScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-      setState(() => loading = false);
+      setState(() {
+        loading = false;
+        data = null;
+      });
       _showSnack("Error: $e");
     }
   }
 
   void _showSnack(String message, {Color? color}) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
@@ -101,13 +136,19 @@ class _ParentOldReceiptsScreenState extends State<ParentOldReceiptsScreen> {
 
   Uri _buildPaymentLinkUri(double amount, String paymentMode) {
     final formattedAmount = amount.toStringAsFixed(2);
+    // return Uri.parse(
+    //   "${ApiUrls.baseUrl}SchoolFess4/ProcessPayment/${widget.studentId}",
+    // ).replace(queryParameters: {
+    //   "sessionYear": _sessionYear,
+    //   "paymentAmount": formattedAmount,
+    //   "paymentMode": paymentMode,
+    // });
+
     return Uri.parse(
-      "https://api.schoolnxpro.com/api/SchoolFess4/ProcessPayment/${widget.studentId}",
-    ).replace(queryParameters: {
-      "sessionYear": _sessionYear,
-      "paymentAmount": formattedAmount,
-      "paymentMode": paymentMode,
-    });
+      "${ApiUrls.baseUrl}school-fees/process-payment/${widget.studentId}"
+          "?sessionYear=${widget.financialYear}&paymentAmount=$formattedAmount"
+    );
+
   }
 
   String _extractTransactionId(String paymentUrl) {
@@ -129,9 +170,17 @@ class _ParentOldReceiptsScreenState extends State<ParentOldReceiptsScreen> {
     if (data == null || amount <= 0) return;
 
     final currentData = Map<String, dynamic>.from(data!);
-    final feeDetails = (currentData['feeDetails'] as List<dynamic>? ?? [])
-        .map<Map<String, dynamic>>((item) => Map<String, dynamic>.from(item))
-        .toList();
+
+    final feeDetailsRaw = currentData['feeDetails'];
+    final feeDetails = <Map<String, dynamic>>[];
+
+    if (feeDetailsRaw is List) {
+      for (final item in feeDetailsRaw) {
+        if (item is Map) {
+          feeDetails.add(Map<String, dynamic>.from(item));
+        }
+      }
+    }
 
     double remaining = amount;
     for (final detail in feeDetails) {
@@ -170,7 +219,9 @@ class _ParentOldReceiptsScreenState extends State<ParentOldReceiptsScreen> {
 
     final totalDue = (data?['totalDue'] as num?)?.toDouble();
     if (totalDue != null && totalDue > 0 && amount > totalDue) {
-      _showSnack("Amount cannot exceed total due (₹${totalDue.toStringAsFixed(2)})");
+      _showSnack(
+        "Amount cannot exceed total due (₹${totalDue.toStringAsFixed(2)})",
+      );
       return;
     }
 
@@ -179,27 +230,34 @@ class _ParentOldReceiptsScreenState extends State<ParentOldReceiptsScreen> {
 
     try {
       final uri = _buildPaymentLinkUri(amount, paymentMode);
+      final token = await MySharedPreferences.instance.getStringValue("token") ?? "";
+
       final response = await http.post(
         uri,
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          if (token.isNotEmpty) 'Authorization': 'Bearer $token',
+        },
         body: jsonEncode({"paymentMode": paymentMode}),
       );
 
-      if (!mounted) {
-        return;
-      }
+      debugPrint("paymentLink url :${uri.path.toString()}");
+      debugPrint("payment Link Response : ${response.body}");
+      if (!mounted) return;
 
       setState(() => loading = false);
 
       if (response.statusCode != 200) {
-        _showSnack("Unable to start payment (${response.statusCode})",
-            color: Colors.red);
+        _showSnack(
+          "Unable to start payment (${response.statusCode})",
+          color: Colors.red,
+        );
         return;
       }
 
       final decoded = json.decode(response.body) as Map<String, dynamic>;
-      final paymentUrl = decoded["paymentUrl"]?.toString() ?? "";
-
+      final paymentUrl = decoded["data"]["paymentUrl"]?.toString() ?? "";
+      debugPrint("payment Link response : ${decoded}");
       if (paymentUrl.isEmpty) {
         _showSnack("Payment link not available", color: Colors.red);
         return;
@@ -223,7 +281,6 @@ class _ParentOldReceiptsScreenState extends State<ParentOldReceiptsScreen> {
           paymentMode: "Online (Paytm)",
           date: DateTime.now(),
         );
-
         _applyLocalPayment(amount);
         payAmountController.clear();
         setState(() {
@@ -235,7 +292,6 @@ class _ParentOldReceiptsScreenState extends State<ParentOldReceiptsScreen> {
             "date": DateTime.now().toString(),
           });
         });
-
         _showSnack("✅ Payment Successful!", color: Colors.green);
         await fetchFeeData();
       } else if (navResult == "failure") {
@@ -278,14 +334,12 @@ class _ParentOldReceiptsScreenState extends State<ParentOldReceiptsScreen> {
                   ),
                 ),
                 pw.SizedBox(height: 20),
-
                 pw.Text("Student Name: $studentName"),
                 pw.Text("Payment Mode: $paymentMode"),
                 pw.Text("Transaction ID: $transactionId"),
                 pw.Text("Date: ${date.toLocal()}"),
                 pw.SizedBox(height: 10),
                 pw.Divider(),
-
                 pw.Text(
                   "Amount Paid: ₹$amount",
                   style: pw.TextStyle(
@@ -294,7 +348,6 @@ class _ParentOldReceiptsScreenState extends State<ParentOldReceiptsScreen> {
                   ),
                 ),
                 pw.SizedBox(height: 20),
-
                 pw.Center(
                   child: pw.Text(
                     "✅ Payment Successful",
@@ -305,11 +358,10 @@ class _ParentOldReceiptsScreenState extends State<ParentOldReceiptsScreen> {
                   ),
                 ),
                 pw.SizedBox(height: 40),
-
                 pw.Align(
                   alignment: pw.Alignment.centerRight,
                   child: pw.Text("Authorized Signatory"),
-                )
+                ),
               ],
             ),
           );
@@ -317,7 +369,6 @@ class _ParentOldReceiptsScreenState extends State<ParentOldReceiptsScreen> {
       ),
     );
 
-    // PDF preview
     await Printing.layoutPdf(onLayout: (format) async => pdf.save());
   }
 
@@ -328,21 +379,44 @@ class _ParentOldReceiptsScreenState extends State<ParentOldReceiptsScreen> {
       body: loading
           ? const Center(child: CircularProgressIndicator())
           : data == null
-              ? const Center(child: Text("No Data Found"))
-              : Column(
-                  children: [
-                    Expanded(child: buildFeeTable()),
-                    buildBottomSection(),
-                    if (receipts.isNotEmpty) buildReceiptList(),
-                  ],
-                ),
+          ? const Center(child: Text("No Data Found"))
+          : Column(
+        children: [
+          Expanded(child: buildFeeTable()),
+          buildBottomSection(),
+          if (receipts.isNotEmpty) buildReceiptList(),
+        ],
+      ),
     );
   }
 
   Widget buildFeeTable() {
-    final feeDetails = List<Map<String, dynamic>>.from(data!['feeDetails']);
-    final totalDue = data!['totalDue'];
-    final totalInvoice = data!['totalInvoice'];
+    // Safe extraction of feeDetails
+    final feeDetailsRaw = data?['feeDetails'];
+    final List<Map<String, dynamic>> feeDetails = [];
+
+    if (feeDetailsRaw is List) {
+      for (final item in feeDetailsRaw) {
+        if (item is Map) {
+          feeDetails.add(Map<String, dynamic>.from(item));
+        }
+      }
+    }
+
+    final totalDue = data?['totalDue'] ?? 0;
+    final totalInvoice = data?['totalInvoice'] ?? 0;
+
+    if (feeDetails.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(20),
+          child: Text(
+            "No fee details available",
+            style: TextStyle(fontSize: 16, color: Colors.grey),
+          ),
+        ),
+      );
+    }
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -351,43 +425,59 @@ class _ParentOldReceiptsScreenState extends State<ParentOldReceiptsScreen> {
         child: DataTable(
           border: TableBorder.all(color: Colors.black26),
           headingRowColor: MaterialStateColor.resolveWith(
-              (states) => Colors.green.shade100),
+                (states) => Colors.green.shade100,
+          ),
           columns: const [
             DataColumn(label: Text("Fee Type")),
             DataColumn(label: Text("Net Due")),
             DataColumn(label: Text("Total Invoice")),
             DataColumn(label: Text("Session Year")),
           ],
-          rows: feeDetails
-              .map((item) => DataRow(cells: [
-                    DataCell(Text(item['feeType'].toString())),
-                    DataCell(Text(item['netDue'].toString())),
-                    DataCell(Text(item['totalInvoice'].toString())),
-                    DataCell(Text(item['sessionYear'].toString())),
-                  ]))
-              .toList()
-            ..add(
-              DataRow(
-                color: MaterialStateColor.resolveWith(
-                    (states) => Colors.grey.shade200),
+          rows: [
+            ...feeDetails.map(
+                  (item) => DataRow(
                 cells: [
-                  const DataCell(Text("Total",
-                      style: TextStyle(fontWeight: FontWeight.bold))),
-                  DataCell(Text(totalDue.toString(),
-                      style: const TextStyle(fontWeight: FontWeight.bold))),
-                  DataCell(Text(totalInvoice.toString(),
-                      style: const TextStyle(fontWeight: FontWeight.bold))),
-                  const DataCell(Text("")),
+                  DataCell(Text(item['feeType']?.toString() ?? "-")),
+                  DataCell(Text(item['netDue']?.toString() ?? "0")),
+                  DataCell(Text(item['totalInvoice']?.toString() ?? "0")),
+                  DataCell(Text(item['sessionYear']?.toString() ?? "-")),
                 ],
               ),
             ),
+            DataRow(
+              color: MaterialStateColor.resolveWith(
+                    (states) => Colors.grey.shade200,
+              ),
+              cells: [
+                const DataCell(
+                  Text(
+                    "Total",
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                DataCell(
+                  Text(
+                    totalDue.toString(),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                DataCell(
+                  Text(
+                    totalInvoice.toString(),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                const DataCell(Text("")),
+              ],
+            ),
+          ],
         ),
       ),
     );
   }
 
   Widget buildBottomSection() {
-    final totalDue = data!['totalDue'];
+    final totalDue = data?['totalDue'] ?? 0;
 
     return Container(
       width: double.infinity,
@@ -402,9 +492,13 @@ class _ParentOldReceiptsScreenState extends State<ParentOldReceiptsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text("Online Pay Amount",
-                        style: TextStyle(
-                            fontWeight: FontWeight.bold, color: Colors.black)),
+                    const Text(
+                      "Online Pay Amount",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
+                    ),
                     const SizedBox(height: 5),
                     Container(
                       height: 38,
@@ -417,8 +511,10 @@ class _ParentOldReceiptsScreenState extends State<ParentOldReceiptsScreen> {
                         keyboardType: TextInputType.number,
                         decoration: const InputDecoration(
                           border: InputBorder.none,
-                          contentPadding:
-                              EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
                         ),
                       ),
                     ),
@@ -430,9 +526,13 @@ class _ParentOldReceiptsScreenState extends State<ParentOldReceiptsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text("Total Due",
-                        style: TextStyle(
-                            fontWeight: FontWeight.bold, color: Colors.black)),
+                    const Text(
+                      "Total Due",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
+                    ),
                     const SizedBox(height: 5),
                     Container(
                       height: 38,
@@ -445,7 +545,9 @@ class _ParentOldReceiptsScreenState extends State<ParentOldReceiptsScreen> {
                       child: Text(
                         totalDue.toString(),
                         style: const TextStyle(
-                            color: Colors.black54, fontWeight: FontWeight.w500),
+                          color: Colors.black54,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                   ],
@@ -461,7 +563,8 @@ class _ParentOldReceiptsScreenState extends State<ParentOldReceiptsScreen> {
                 backgroundColor: Colors.green.shade700,
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(6)),
+                  borderRadius: BorderRadius.circular(6),
+                ),
               ),
               onPressed: _initiatePayment,
               child: const Text(
@@ -470,7 +573,7 @@ class _ParentOldReceiptsScreenState extends State<ParentOldReceiptsScreen> {
               ),
             ),
           ),
-          SizedBox(height: 30),
+          const SizedBox(height: 30),
         ],
       ),
     );
@@ -488,7 +591,8 @@ class _ParentOldReceiptsScreenState extends State<ParentOldReceiptsScreen> {
             child: ListTile(
               title: Text("${r['studentName']} - ₹${r['amount']}"),
               subtitle: Text(
-                  "Txn: ${r['txnId']}\n${r['paymentMode']} | ${r['date'].toString().split('.')[0]}"),
+                "Txn: ${r['txnId']}\n${r['paymentMode']} | ${r['date'].toString().split('.')[0]}",
+              ),
               leading: const Icon(Icons.receipt_long, color: Colors.green),
             ),
           );

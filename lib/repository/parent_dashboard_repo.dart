@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:developer';
 import 'package:flutter/widgets.dart';
+import 'package:http/http.dart' as http;
 import 'package:school_nx_pro/models/parent_dashboard_model.dart';
 import 'package:school_nx_pro/repository/base_repo.dart';
 import 'package:school_nx_pro/utils/api_urls.dart';
@@ -23,7 +24,8 @@ class ParentDashboardRepo extends BaseRepository {
 
     try {
       final response = await getHttp(
-          api: "Dashboard?studentId=$studentId&instituteId=$instituteId"
+          api: "${ApiUrls.dashboard}?studentId=$studentId&instituteId=$instituteId",
+        token: true
       );
       log(response.body, name: 'response getStudentDetailsAPI');
 
@@ -48,13 +50,28 @@ class ParentDashboardRepo extends BaseRepository {
         await MySharedPreferences.instance.getStringValue("sessionYear") ??
             "2024-2025";
 
-    final encodedMethod = Uri.encodeQueryComponent(paymentMethod);
-    final response = await postHttp(
-      api:
-          "${ApiUrls.addPayment}/$studentId?sessionYear=$sessionYear&paymentAmount=$paymentAmount&paymentMode=$encodedMethod",
-      data: {
-        "paymentMode": paymentMethod,
+    // final encodedMethod = Uri.encodeQueryComponent(paymentMethod);
+    // final response = await postHttp(
+    //   api:
+    //       "${ApiUrls.addPayment}/$studentId?sessionYear=$sessionYear&paymentAmount=$paymentAmount&paymentMode=$encodedMethod",
+    //   data: {
+    //     "paymentMode": paymentMethod,
+    //   },
+    //   token: true
+    // );
+    final formattedAmount = paymentAmount;
+
+    final url = "${ApiUrls.baseUrl}school-fees/process-payment/${studentId}"
+        "?sessionYear=${sessionYear}&paymentAmount=$formattedAmount";
+    final token = await MySharedPreferences.instance.getStringValue("token") ?? "";
+
+    final response = await http.post(
+      Uri.parse(url),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token.isNotEmpty) 'Authorization': 'Bearer $token',
       },
+      body: jsonEncode({"paymentMode": paymentMethod}),
     );
     log(response.body, name: 'response addPaymentAPI');
     return json.decode(response.body);

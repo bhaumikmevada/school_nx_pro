@@ -32,8 +32,8 @@ class ParentDashboardProvider extends ChangeNotifier {
 
       log(response.toString(), name: "response addPayment");
 
-      if (response?['paymentUrl'] != null) {
-        String paymentUrl = response?['paymentUrl'];
+      if (response?["data"]['paymentUrl'] != null) {
+        String paymentUrl = response?["data"]['paymentUrl'];
         log(paymentUrl, name: "payment Url");
         scaffoldMessage(message: "Redirecting to payment gateway");
         return paymentUrl;

@@ -187,10 +187,10 @@ class _ParentDashboardState extends State<ParentDashboard> {
       // Load all data in parallel for faster performance
       await Future.wait([
         parentDashboardProvider.getStudentDetails(),
-        holidayProvider.getHoliday(),
+        // holidayProvider.getHoliday(studentId),
         homeworkProvider.fetchHomework(studentId),
         // schoolCircularProvider.getSchoolCircular(),
-        _loadEventData(),
+        // _loadEventData(),
       ]);
     } catch (e) {
       debugPrint("Error loading dashboard data: $e");
@@ -339,10 +339,10 @@ class _ParentDashboardState extends State<ParentDashboard> {
     // ]);
 
     parentDashboardProvider.getStudentDetails();
-    holidayProvider.getHoliday();
+    holidayProvider.getHoliday(studentId);
     homeworkProvider.fetchHomework(studentId);
     // schoolCircularProvider.getSchoolCircular();
-    _loadEventData();
+    // _loadEventData();
 
     if (mounted) {
       setState(() {});
@@ -593,6 +593,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
                         studentName: studentName,
                         studentPhone: matchingChild?["phone"]?.toString() ?? "N/A",
                         studentEmail: matchingChild?["email"]?.toString() ?? "N/A",
+                        financialYear: financialYear ?? "N/A",
                       )),
                     );
                   });
@@ -643,10 +644,12 @@ class _ParentDashboardState extends State<ParentDashboard> {
                     selectedIndex = 4;
                     PreferenceUtils.saveInt(PREF_DRAWER_INDEX, selectedIndex);
                     Navigator.pop(context);
+                    debugPrint("holiday clicked");
+
                     Navigator.push(
                       context,
                       MaterialPageRoute(builder: (context) =>
-                          HolidaysScreen(userType: UserType.parent)
+                          HolidaysScreen(userType: UserType.parent,studentId: studentId)
                       ),
                     );
                   });
@@ -1189,7 +1192,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
                                     Navigator.push(
                                       context,
                                       MaterialPageRoute(builder: (context) =>
-                                          HolidaysScreen(userType: UserType.parent)
+                                          HolidaysScreen(userType: UserType.parent,studentId: studentId,)
                                       ),
                                     );
                                   },

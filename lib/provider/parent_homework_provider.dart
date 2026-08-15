@@ -265,11 +265,18 @@ class HomeworkProviders extends ChangeNotifier {
       //   "https://api.schoolnxpro.com/api/Homework/Id?admissionId=$studentId&instituteId=$instituteId",
       // );
       final uri = Uri.parse(
-        "${ApiUrls.baseUrl}HomeworkUpload1/list?instituteId=$instituteId",
+        "${ApiUrls.baseUrl}homework/list?instituteId=$instituteId",
+        // "${ApiUrls.baseUrl}homework/my?studentId=$studentId&instituteId=$instituteId",
       );
-      final response = await http.get(uri);
+      final token = await MySharedPreferences.instance.getStringValue("token") ?? "";
+      final response = await http.get(uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
 
-      debugPrint("fetch homework : https://api.schoolnxpro.com/api/Homework/Id?admissionId=$studentId&instituteId=$instituteId");
+      debugPrint("fetch homework : ${ApiUrls.baseUrl}homework/list?instituteId=$instituteId");
       if (response.statusCode == 200) {
         final jsonData = json.decode(response.body);
         final apiData = jsonData['data'];

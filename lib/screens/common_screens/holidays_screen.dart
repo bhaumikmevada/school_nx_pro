@@ -4,25 +4,33 @@ import 'package:provider/provider.dart';
 import 'package:school_nx_pro/screens/parent/parent_components/parent_appbar.dart';
 import 'package:school_nx_pro/theme/app_colors.dart';
 import 'package:school_nx_pro/theme/font_theme.dart';
+import 'package:school_nx_pro/utils/api_urls.dart';
 import 'package:school_nx_pro/utils/enum.dart';
 import 'package:school_nx_pro/utils/http_client_manager.dart';
 
 import '../../utils/CustomText.dart';
+import '../../utils/my_sharepreferences.dart';
 import '../../utils/utils.dart';
 
 class HolidayModels {
   final String holidayOn;
   final String reason;
+  final String formattedDate;
+  final String holidayDetailId;
 
   HolidayModels({
     required this.holidayOn,
     required this.reason,
+    required this.formattedDate,
+    required this.holidayDetailId,
   });
 
   factory HolidayModels.fromJson(Map<String, dynamic> json) {
     return HolidayModels(
       holidayOn: json['holiday_On'] ?? '',
       reason: json['reason'] ?? '',
+      formattedDate: json['formatted_date'] ?? '',
+      holidayDetailId: json['holiday_detail_id'] ?? '',
     );
   }
 }
@@ -32,13 +40,24 @@ class HolidayProviders extends ChangeNotifier {
 
   List<HolidayModels> get getHolidayList => _holidayList;
 
-  Future<void> getHoliday() async {
+  Future<void> getHoliday(String studentId) async {
     try {
       final client = HttpClientManager.instance.getClient();
+      final instituteId = await MySharedPreferences.instance.getStringValue("instituteId") ?? "10085";
+      final token = await MySharedPreferences.instance.getStringValue("token") ?? "";
+
+      debugPrint("getHoliday studentId : $studentId");
       final response = await client.get(
-        Uri.parse('https://api.schoolnxpro.com/api/holiday?instituteId=10085'),
-        headers: {'Content-Type': 'application/json'},
+        // Uri.parse('${ApiUrls.baseUrl}holiday?instituteId=$instituteId'),
+        Uri.parse('${ApiUrls.baseUrl}holidays/my?studentId=$studentId'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
       );
+
+      debugPrint("getHoliday url : ${ApiUrls.baseUrl}holidays/my?studentId=$studentId");
+      debugPrint("getHoliday response : ${response.body}");
 
       if (response.statusCode == 200) {
         final body = json.decode(response.body);
@@ -62,9 +81,10 @@ class HolidayProviders extends ChangeNotifier {
 }
 
 class HolidaysScreen extends StatefulWidget {
-  const HolidaysScreen({super.key, required this.userType});
+   HolidaysScreen({super.key, required this.userType,required this.studentId});
 
   final UserType userType;
+  final String studentId;
 
   @override
   State<HolidaysScreen> createState() => _HolidaysScreenState();
@@ -84,7 +104,9 @@ class _HolidaysScreenState extends State<HolidaysScreen> {
 
     provider = Provider.of<HolidayProviders>(context, listen: false);
 
-    provider.getHoliday().then((value) {
+    debugPrint("holiday screen studentId : ${widget.studentId}");
+
+    provider.getHoliday(widget.studentId).then((value) {
       loader = false;
       loading = false;
       setState(() {});
@@ -143,7 +165,7 @@ class _HolidaysScreenState extends State<HolidaysScreen> {
                                             ),
                                             color: AppColors.blue
                                         ),
-                                        child: CustomText.TextMedium(holiday.holidayOn,fontSize: 13.0,color: AppColors.whiteColor,textAlign: TextAlign.center),
+                                        child: CustomText.TextMedium(holiday.formattedDate,fontSize: 13.0,color: AppColors.whiteColor,textAlign: TextAlign.center),
                                       ),
 
                                       Container(

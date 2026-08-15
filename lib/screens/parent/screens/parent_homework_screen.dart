@@ -36,16 +36,25 @@ class _ParentHomeworkScreenState extends State<ParentHomeworkScreen> {
   }
 
   Future<void> fetchHomeworkList() async {
+    debugPrint("fetchHomeworkList called ");
     setState(() => isLoading = true);
     String? instituteId =
         await MySharedPreferences.instance.getStringValue("instituteId") ?? "10085";
-
+    final token = await MySharedPreferences.instance.getStringValue("token") ?? "";
     try {
       final response = await http.get(
         Uri.parse(
-          "${ApiUrls.baseUrl}HomeworkUpload1/list?instituteId=$instituteId",
+          // "${ApiUrls.baseUrl}HomeworkUpload1/list?instituteId=$instituteId",
+          "${ApiUrls.baseUrl}${ApiUrls.myHomework}?studentId=${widget.studentId}&instituteId=$instituteId",
         ),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
       );
+      debugPrint("fetchHomeworkList url : ${ApiUrls.baseUrl}${ApiUrls.myHomework}?studentId=${widget.studentId}&instituteId=$instituteId");
+
+      debugPrint("fetchHomeworkList response : ${response.body}");
 
       if (response.statusCode == 200) {
         final jsonData = jsonDecode(response.body);
@@ -113,6 +122,19 @@ class _HomeworkCardWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     final headerColor = Theme.of(context).primaryColor;
 
+    // Extract nested homework object safely
+    final Map<String, dynamic>? hwData = homework['homework'] is Map
+        ? Map<String, dynamic>.from(homework['homework'])
+        : null;
+
+    final String subjectName = homework['subjectName']?.toString() ?? 'Subject';
+    final String title = hwData?['homeWorkName']?.toString() ?? '-';
+    final String description = hwData?['homeWorkDescription']?.toString() ?? '';
+    final String homeWorkDate = hwData?['homeWorkDate']?.toString() ?? '';
+    final String dueDate = hwData?['homeWorkDueOnDate']?.toString() ?? '';
+    final String? homeWorkId = hwData?['homeWorkId']?.toString();
+    final String? attachment = hwData?['extensions']?.toString();
+
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
@@ -143,7 +165,7 @@ class _HomeworkCardWidget extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    homework['subjectName']?.toString() ?? homework['subject']?.toString() ?? 'Subject',
+                    subjectName,
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
@@ -154,8 +176,11 @@ class _HomeworkCardWidget extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  Utils.convertDateFormat(inputDate: homework['homeWorkDate']?.toString() ?? homework['fromDate']?.toString() ?? '',
-                      inputFormat: "yyyy-MM-dd'T'HH:mm:ss", outputFormat: "dd/MM/yyyy"),
+                  Utils.convertDateFormat(
+                    inputDate: homeWorkDate,
+                    inputFormat: "yyyy-MM-dd'T'HH:mm:ss",
+                    outputFormat: "dd/MM/yyyy",
+                  ),
                   style: const TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 14,
@@ -165,16 +190,24 @@ class _HomeworkCardWidget extends StatelessWidget {
               ],
             ),
           ),
+
           // White Body
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _infoRow("Title", homework['homeWorkName']?.toString() ?? homework['title']?.toString() ?? '-'),
-                _infoRow("Due On", homework['homeWorkDueOnDate']?.toString() ?? homework['toDate']?.toString() ?? '-'),
-                _attachmentRow(context, homework),
-                _infoRow("Description", homework['homeWorkDescription']?.toString() ?? ''),
+                _infoRow("Title", title),
+                _infoRow(
+                  "Due On",
+                  Utils.convertDateFormat(
+                    inputDate: dueDate,
+                    inputFormat: "yyyy-MM-dd'T'HH:mm:ss",
+                    outputFormat: "dd/MM/yyyy",
+                  ),
+                ),
+                _attachmentRow(context, homeWorkId, attachment),
+                _infoRow("Description", description),
               ],
             ),
           ),
@@ -191,23 +224,35 @@ class _HomeworkCardWidget extends StatelessWidget {
         children: [
           Expanded(
             flex: 2,
-            child: Text("$label :", style: const TextStyle(fontWeight: FontWeight.w600)),
+            child: Text(
+              "$label :",
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
           ),
           Expanded(
             flex: 4,
-            child: Text(value.isEmpty ? "-" : value, maxLines: 3, overflow: TextOverflow.ellipsis),
+            child: Text(
+              value.isEmpty ? "-" : value,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         ],
       ),
     );
   }
 
-  // ================== VIEW ATTACHMENT - CALL DOWNLOAD API ==================
-  Widget _attachmentRow(BuildContext context, dynamic hw) {
-    final String? homeWorkId = hw['homeWorkId']?.toString();
-
-    // If no homeworkId or attachment, show "-"
-    if (homeWorkId == null || homeWorkId.isEmpty) {
+  Widget _attachmentRow(
+      BuildContext context,
+      String? homeWorkId,
+      String? attachment,
+      ) {
+    // No attachment available
+    if (homeWorkId == null ||
+        homeWorkId.isEmpty ||
+        attachment == null ||
+        attachment.isEmpty ||
+        attachment.toLowerCase() == 'null') {
       return _infoRow("Attachment", "-");
     }
 
@@ -218,13 +263,18 @@ class _HomeworkCardWidget extends StatelessWidget {
         children: [
           const Expanded(
             flex: 2,
-            child: Text("Attachment :", style: TextStyle(fontWeight: FontWeight.w600)),
+            child: Text(
+              "Attachment :",
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
           ),
           Expanded(
             flex: 4,
             child: InkWell(
               onTap: () async {
-                final downloadUrl = "${ApiUrls.baseUrl}HomeworkUpload1/download/$homeWorkId?homeworkId=$homeWorkId";
+                // You can keep your existing download API or use the extensions URL
+                final downloadUrl =
+                    "${ApiUrls.baseUrl}HomeworkUpload1/download/$homeWorkId?homeworkId=$homeWorkId";
 
                 final uri = Uri.parse(downloadUrl);
 
@@ -234,7 +284,9 @@ class _HomeworkCardWidget extends StatelessWidget {
                   } else {
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Could not open attachment")),
+                        const SnackBar(
+                          content: Text("Could not open attachment"),
+                        ),
                       );
                     }
                   }

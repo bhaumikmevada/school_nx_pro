@@ -102,7 +102,7 @@ class _AdminDrawerState extends State<AdminDrawer> {
             context,
             icon: AppIcons.holidays,
             title: "Holidays",
-            page: const HolidaysScreen(userType: UserType.admin),
+            page: HolidaysScreen(userType: UserType.admin,studentId: "",),
           ),
           _buildListTile(
             context,

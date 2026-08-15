@@ -7,6 +7,9 @@ import 'package:school_nx_pro/theme/app_colors.dart';
 import 'package:school_nx_pro/theme/font_theme.dart';
 import 'package:school_nx_pro/utils/http_client_manager.dart';
 
+import '../../../utils/api_urls.dart';
+import '../../../utils/my_sharepreferences.dart';
+
 class EventGallery {
   final int eventId;
   final String eventName;
@@ -31,14 +34,20 @@ class EventGallery {
 }
 
 Future<List<EventGallery>> fetchGalleryData() async {
-  const url = 'https://api.schoolnxpro.com/api/EventWithImages?instituteId=10085';
+  final instituteId = await MySharedPreferences.instance.getStringValue("instituteId") ?? "10085";
+  final token = await MySharedPreferences.instance.getStringValue("token") ?? "";
+
+  final url = '${ApiUrls.baseUrl}${ApiUrls.schoolcircular}?instituteId=$instituteId';
   final client = HttpClientManager.instance.getClient();
   final response = await client.get(
     Uri.parse(url),
-    headers: {'Content-Type': 'application/json'},
+    headers: {
+      'Content-Type': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token'
+    },
   );
 
-  debugPrint("event url : $url");
+  debugPrint("event url new : $url");
   debugPrint("event response : ${response.body.toString()}");
 
   if (response.statusCode == 200) {

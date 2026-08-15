@@ -38,7 +38,7 @@ class EventListModel {
 }
 
 class Day {
-  DateTime date;
+  String date;
   List<Event> events;
 
   Day({
@@ -47,12 +47,12 @@ class Day {
   });
 
   factory Day.fromJson(Map<String, dynamic> json) => Day(
-    date: DateTime.parse(json["date"]),
+    date: json["date"],
     events: List<Event>.from(json["events"].map((x) => Event.fromJson(x))),
   );
 
   Map<String, dynamic> toJson() => {
-    "date": "${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}",
+    "date": date,
     "events": List<dynamic>.from(events.map((x) => x.toJson())),
   };
 }

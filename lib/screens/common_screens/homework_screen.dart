@@ -56,7 +56,8 @@ class _HomeworkScreenState extends State<HomeworkScreen> {
     try {
       final response = await http.get(
         Uri.parse(
-          "${ApiUrls.baseUrl}HomeworkUpload1/list?instituteId=$instituteId&allotTeacherId=$allottedTeacherId",
+          // "${ApiUrls.baseUrl}HomeworkUpload1/list?instituteId=$instituteId&allotTeacherId=$allottedTeacherId",
+          "${ApiUrls.baseUrl}homework/list?instituteId=$instituteId&allotTeacherId=$allottedTeacherId",
         ),
       );
 

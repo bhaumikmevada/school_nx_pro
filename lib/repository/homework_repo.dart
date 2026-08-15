@@ -16,11 +16,11 @@ class HomeworkRepo extends BaseRepository {
         await MySharedPreferences.instance.getStringValue("instituteId");
     
     // Include both admissionId and instituteId in params
-    final params = '?admissionId=$id${instituteId != null ? '&instituteId=$instituteId' : ''}';
-
-    final response = await getHttp(api: ApiUrls.homework + params);
+    final params = '?studentId=$id${instituteId != null ? '&instituteId=$instituteId' : ''}';
+    // final response = await getHttp(api: ApiUrls.homework + params);
+    final response = await getHttp(api: ApiUrls.myHomework + params,token: true);
     log(response.body, name: 'response getHomeworkApi');
-    log("API URL: ${ApiUrls.baseUrl}${ApiUrls.homework}$params", name: 'getHomeworkApi URL');
+    log("API URL: ${ApiUrls.baseUrl}${ApiUrls.myHomework}$params", name: 'getHomeworkApi URL');
     return json.decode(response.body);
   }
 

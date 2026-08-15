@@ -153,6 +153,7 @@ class _ParentDrawerState extends State<ParentDrawer> {
               studentName: studentName,
               studentPhone: matchingChild?["phone"]?.toString() ?? "N/A",
               studentEmail: matchingChild?["email"]?.toString() ?? "N/A",
+              financialYear: matchingChild?["yearOfAdmission"].toString() ?? "N/A",
             ),
           ),
           _buildListTile(
@@ -173,7 +174,7 @@ class _ParentDrawerState extends State<ParentDrawer> {
             context,
             icon: AppIcons.holidays,
             title: "Holidays",
-            page: const HolidaysScreen(userType: UserType.parent),
+            page: HolidaysScreen(userType: UserType.parent,studentId: widget.studentId,),
           ),
           _buildListTile(
             context,
