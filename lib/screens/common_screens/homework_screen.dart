@@ -54,13 +54,23 @@ class _HomeworkScreenState extends State<HomeworkScreen> {
         await MySharedPreferences.instance.getStringValue("instituteId") ?? "10085";
 
     try {
+      final token = await MySharedPreferences.instance.getStringValue("token") ?? "";
+
+      debugPrint("selectedSubject : $selectedSubject");
+
       final response = await http.get(
         Uri.parse(
           // "${ApiUrls.baseUrl}HomeworkUpload1/list?instituteId=$instituteId&allotTeacherId=$allottedTeacherId",
-          "${ApiUrls.baseUrl}homework/list?instituteId=$instituteId&allotTeacherId=$allottedTeacherId",
+          "${ApiUrls.baseUrl}homework/list?instituteId=$instituteId&subjectId=$selectedSubject&allotTeacherId=$allottedTeacherId",
         ),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
       );
 
+      debugPrint("homework url : ${ApiUrls.baseUrl}homework/list?instituteId=$instituteId&subjectId=$selectedSubject&allotTeacherId=$allottedTeacherId");
+      debugPrint("homework response : ${response.body}");
       if (response.statusCode == 200) {
         final jsonData = jsonDecode(response.body);
 
@@ -91,12 +101,20 @@ class _HomeworkScreenState extends State<HomeworkScreen> {
   Future<void> fetchSubjects() async {
 
     try {
-
+      final token = await MySharedPreferences.instance.getStringValue("token") ?? "";
       String? instituteId =
           await MySharedPreferences.instance.getStringValue("instituteId") ?? "10085";
       final response = await http.get(
-        Uri.parse("${ApiUrls.baseUrl}Subject?instituteId=$instituteId"),
+        // Uri.parse("${ApiUrls.baseUrl}Subject?instituteId=$instituteId"),
+        Uri.parse("${ApiUrls.baseUrl}subject?instituteId=$instituteId"),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
       );
+
+      debugPrint("homework subject response : ${response.body}");
+
       if (response.statusCode == 200) {
         setState(() => subjects = jsonDecode(response.body));
       }
@@ -232,20 +250,29 @@ class _HomeworkScreenState extends State<HomeworkScreen> {
                     );
 
                     try {
-                      final uri = Uri.parse("${ApiUrls.baseUrl}HomeworkUpload1/add");
+                      // final uri = Uri.parse("${ApiUrls.baseUrl}HomeworkUpload1/add");
+                      final uri = Uri.parse("${ApiUrls.baseUrl}homework-upload1/add");
+                      final token = await MySharedPreferences.instance.getStringValue("token") ?? "";
+                      String? instituteUserId = await MySharedPreferences.instance.getStringValue("employeeUserId");
+                      String? allottedTeacherId = await MySharedPreferences.instance.getStringValue("allottedTeacherId");
+                      String instituteId = await MySharedPreferences.instance.getStringValue("instituteId") ?? "10085";
+
+                      debugPrint("add homework instituteUserId : $instituteUserId, allottedTeacherId : $allottedTeacherId");
 
                       var request = http.MultipartRequest('POST', uri);
-
-                      request.fields['instituteId'] = '10085';
+                      request.headers['Authorization'] = 'Bearer $token';
+                      request.fields['instituteId'] = instituteId;
                       request.fields['subjectId'] = selectedSubject!;
                       request.fields['homeWorkName'] = titleCtrl.text.trim();
                       request.fields['homeWorkDescription'] = descCtrl.text.trim();
                       request.fields['homeWorkDate'] = DateFormat('dd-MM-yyyy').format(fromDate!);
                       request.fields['homeWorkDueOnDate'] = DateFormat('dd-MM-yyyy').format(toDate!);
-                      request.fields['allotTeacherId'] = '50069';
+                      request.fields['allotTeacherId'] = allottedTeacherId ?? "";
+                      request.fields['instituteUserId'] =  "90563";
 
                       debugPrint("attachmentFile : ${attachmentFile?.path}");
 
+                      debugPrint("request field add homework : ${request.fields}");
                       if (attachmentFile != null) {
                         request.files.add(await http.MultipartFile.fromPath(
                           'file',
@@ -498,7 +525,8 @@ class _HomeworkCardWidget extends StatelessWidget {
             flex: 4,
             child: InkWell(
               onTap: () async {
-                final downloadUrl = "${ApiUrls.baseUrl}HomeworkUpload1/download/$homeWorkId?homeworkId=$homeWorkId";
+                // final downloadUrl = "${ApiUrls.baseUrl}HomeworkUpload1/download/$homeWorkId?homeworkId=$homeWorkId";
+                final downloadUrl = "${ApiUrls.baseUrl}homework-upload1/download/$homeWorkId";
 
                 final uri = Uri.parse(downloadUrl);
 

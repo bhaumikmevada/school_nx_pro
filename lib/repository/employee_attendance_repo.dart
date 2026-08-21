@@ -12,7 +12,7 @@ class EmployeeAttendanceRepo extends BaseRepository {
 
     final params = '?instituteId=${instituteId ?? "10085"}';
 
-    final response = await getHttp(api: ApiUrls.course + params);
+    final response = await getHttp(api: ApiUrls.course + params,token: true);
     log(response.body, name: 'response getCourseApi');
     return json.decode(response.body);
   }
@@ -23,7 +23,7 @@ class EmployeeAttendanceRepo extends BaseRepository {
 
     final params = '?instituteId=${instituteId ?? "10085"}';
 
-    final response = await getHttp(api: ApiUrls.section + params);
+    final response = await getHttp(api: ApiUrls.section + params,token: true);
     log(response.body, name: 'response getSectionApi');
     return json.decode(response.body);
   }
@@ -34,7 +34,7 @@ class EmployeeAttendanceRepo extends BaseRepository {
 
     final params = '?instituteId=${instituteId ?? "10085"}';
 
-    final response = await getHttp(api: ApiUrls.medium + params);
+    final response = await getHttp(api: ApiUrls.medium + params,token: true);
     log(response.body, name: 'response getMediumApi');
     return json.decode(response.body);
   }
@@ -45,7 +45,7 @@ class EmployeeAttendanceRepo extends BaseRepository {
 
     final params = '?instituteId=${instituteId ?? "10085"}';
 
-    final response = await getHttp(api: ApiUrls.stream + params);
+    final response = await getHttp(api: ApiUrls.stream + params,token: true);
     log(response.body, name: 'response getStreamApi');
     return json.decode(response.body);
   }
@@ -56,7 +56,7 @@ class EmployeeAttendanceRepo extends BaseRepository {
 
     final params = '?instituteId=${instituteId ?? "10085"}';
 
-    final response = await getHttp(api: ApiUrls.substream + params);
+    final response = await getHttp(api: ApiUrls.substream + params,token: true);
     log(response.body, name: 'response getSubStreamApi');
     return json.decode(response.body);
   }
@@ -70,7 +70,7 @@ class EmployeeAttendanceRepo extends BaseRepository {
   ) async {
     final params =
         '?courseId=$courseId&sectionId=$sectionId&mediumId=$mediumId&streamId=$streamId&subStreamId=$subStreamId';
-    final response = await getHttp(api: ApiUrls.studentInCSMSS + params);
+    final response = await getHttp(api: ApiUrls.studentInCSMSS + params,token: true);
     log(response.body, name: 'response getStudentsForAttendenceApi');
     return json.decode(response.body);
   }
@@ -87,12 +87,32 @@ class EmployeeAttendanceRepo extends BaseRepository {
     final url =
         "${ApiUrls.submitAttandancewithCSMSS}/attendance/employee/$employeeID/class/$courseID/$sectionID/$mediumID/$streamID/$subStreamID";
 
+    // dates ko String se List mein convert karna
+    final updatedData = data.map((student) {
+      final updatedStudent = Map<String, dynamic>.from(student);
+
+      final dates = updatedStudent["dates"];
+
+      if (dates is String) {
+        // "[2026-08-17T00:00:00.000Z]" -> ["2026-08-17T00:00:00.000Z"]
+        final cleanDate = dates
+            .replaceAll("[", "")
+            .replaceAll("]", "")
+            .trim();
+
+        updatedStudent["dates"] =
+        cleanDate.isEmpty ? <String>[] : [cleanDate];
+      }
+
+      return updatedStudent;
+    }).toList();
+
+    debugPrint("submitStudentAttendence data : $updatedData");
+
     final response = await newPostHttp(
       api: url,
-      data: data,
+      data: updatedData,token: true
     );
-
-    debugPrint("submitStudentAttendence data : $data");
 
     log(response.body, name: 'response submitStudentAttendence');
 
@@ -103,6 +123,7 @@ class EmployeeAttendanceRepo extends BaseRepository {
         return {"message": response.body};
       }
     }
+
     return null;
   }
 }

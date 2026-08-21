@@ -165,19 +165,19 @@ class LocalEventStorage {
 }
 
 class EventModel {
-  final int eventId;
+  final int? eventId;
   final String eventName;
-  final DateTime eventDate;
-  final int courseId;
-  final String courseName;
+  final String eventDate;
+  final int? courseId;           // ← nullable banaya
+  final String? courseName;      // ← nullable banaya
   List<String> images = [];
 
   EventModel({
-    required this.eventId,
+    this.eventId,
     required this.eventName,
     required this.eventDate,
-    required this.courseId,
-    required this.courseName,
+    this.courseId,
+    this.courseName,
     required this.images,
   });
 
@@ -185,7 +185,7 @@ class EventModel {
   EventModel copyWith({
     int? eventId,
     String? eventName,
-    DateTime? eventDate,
+    String? eventDate,
     int? courseId,
     String? courseName,
     List<String>? images,
@@ -202,11 +202,11 @@ class EventModel {
 
   factory EventModel.fromJson(Map<String, dynamic> json) {
     return EventModel(
-      eventId: json['eventId'],
-      eventName: json['eventName'],
-      eventDate: json['eventDate'],
-      courseId: json['courseId'],
-      courseName: json['courseName'],
+      eventId: json['eventId'] as int?,
+      eventName: json['eventName']?.toString() ?? '',
+      eventDate: json['eventDate']?.toString() ?? '',
+      courseId: json['courseId'] as int?,                 // safe
+      courseName: json['courseName']?.toString(),
       images: List<String>.from(json['images'] ?? []),
     );
   }
@@ -242,16 +242,20 @@ class EventService {
     if (instituteId == null || instituteId.isEmpty) {
       instituteId = "10085"; // Fallback
     }
+    final token = await MySharedPreferences.instance.getStringValue("token") ?? "";
 
+    debugPrint(token);
     final response = await client.get(
       // Uri.parse("${ApiUrls.baseUrl}/EventWithImages?instituteId=$instituteId"),
-      Uri.parse("${ApiUrls.baseUrl}/EventWithImages?instituteId=$instituteId"),
-      headers: {'Content-Type': 'application/json'},
+      Uri.parse("${ApiUrls.baseUrl}events/with-images?instituteId=$instituteId"),
+      headers: {'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token'
+      },
     );
 
     List<EventModel> eventList = [];
 
-    debugPrint("Fetch Event url  : ${ Uri.parse("${ApiUrls.baseUrl}EventWithImages?instituteId=$instituteId")}");
+    debugPrint("Fetch Event url  : ${ Uri.parse("${ApiUrls.baseUrl}events/with-images?instituteId=$instituteId")}");
     debugPrint("Fetch Event response : ${response.body.toString()}");
 
     if (response.statusCode == 200) {
@@ -336,7 +340,7 @@ class EventService {
       await Future.delayed(const Duration(seconds: 5));
 
       final client = HttpClientManager.instance.getClient();
-      final verificationUrl = "https://api.schoolnxpro.com/api/EventWithImages?instituteId=$instituteId";
+      final verificationUrl = "${ApiUrls.baseUrl}events/with-images?instituteId=$instituteId";
       print("🔍 Verification: Fetching from $verificationUrl");
       final response = await client.get(
         Uri.parse(verificationUrl),
@@ -386,7 +390,7 @@ class EventService {
 
                 // Re-fetch to check again
                 final retryResponse = await client.get(
-                  Uri.parse("https://api.schoolnxpro.com/api/EventWithImages?instituteId=$instituteId"),
+                  Uri.parse("${ApiUrls.baseUrl}events/with-images?instituteId=$instituteId"),
                   headers: {'Content-Type': 'application/json'},
                 );
 
@@ -455,7 +459,7 @@ class EventService {
               print("🔄 Retrying filename verification (attempt $retryAttempt/3)...");
 
               final retryResponse = await client.get(
-                Uri.parse("https://api.schoolnxpro.com/api/EventWithImages?instituteId=$instituteId"),
+                Uri.parse("${ApiUrls.baseUrl}events/with-images?instituteId=$instituteId"),
                 headers: {'Content-Type': 'application/json'},
               );
 
@@ -522,7 +526,7 @@ class EventService {
       }
 
       final client = HttpClientManager.instance.getClient();
-      final url = Uri.parse("https://api.schoolnxpro.com/api/Section?instituteId=$instituteId");
+      final url = Uri.parse("${ApiUrls.baseUrl}Section?instituteId=$instituteId");
       final response = await client.get(
         url,
         headers: {'Content-Type': 'application/json'},
@@ -621,7 +625,7 @@ class EventService {
       final encodedDescription = Uri.encodeComponent(uniqueDescription);
 
       // Build URL with gallery upload parameters (NO eventId - this is the key difference)
-      String uploadUrl = "https://api.schoolnxpro.com/api/FileUploadDownload1/UploadPhoto"
+      String uploadUrl = "${ApiUrls.baseUrl}FileUploadDownload1/UploadPhoto"
           "?description=$encodedDescription&employeeId=$employeeId&sectionId=$sectionId";
 
       // Add instituteId to query params if available
@@ -819,7 +823,7 @@ class EventService {
       final encodedDescription = Uri.encodeComponent(description);
 
       // Build URL with all required parameters, including instituteId if available
-      String uploadUrl = "https://api.schoolnxpro.com/api/FileUploadDownload1/UploadPhoto"
+      String uploadUrl = "${ApiUrls.baseUrl}FileUploadDownload1/UploadPhoto"
           "?description=$encodedDescription&employeeId=$employeeId&sectionId=$sectionId&eventId=$eventId";
 
       // Add instituteId to query params if available (may help backend link image to event properly)
@@ -929,7 +933,7 @@ class EventService {
               // Construct URL based on the pattern seen in EventWithImages API
               // Example: https://api.schoolnxpro.com/api/EventWithImages/download/10085/100044/Catalogue.jpg
               if (instituteId != null && instituteId.isNotEmpty) {
-                serverUrl = "https://api.schoolnxpro.com/api/EventWithImages/download/$instituteId/$eventId/$responseFilename";
+                serverUrl = "${ApiUrls.baseUrl}EventWithImages/download/$instituteId/$eventId/$responseFilename";
                 print("🔗 Constructed server URL from filename: $serverUrl");
                 print("🔗 Using instituteId: $instituteId, eventId: $eventId, filename: $responseFilename");
               } else {
@@ -1005,7 +1009,7 @@ class EventService {
 
       // Build the URL (without query parameters - we'll use form fields)
       final url = Uri.parse(
-        "https://api.schoolnxpro.com/api/FileUploadDownload1/UploadPhoto",
+        "${ApiUrls.baseUrl}FileUploadDownload1/UploadPhoto",
       );
 
       var request = http.MultipartRequest("POST", url);
@@ -1084,7 +1088,7 @@ class EventService {
             // If no URL but we have filename, construct the server URL
             if (serverUrl == null && jsonResponse['filename'] != null && instituteId != null) {
               final filename = jsonResponse['filename'] as String;
-              serverUrl = "https://api.schoolnxpro.com/api/EventWithImages/download/$instituteId/$eventId/$filename";
+              serverUrl = "${ApiUrls.baseUrl}EventWithImages/download/$instituteId/$eventId/$filename";
               print("🔗 Constructed server URL from filename: $serverUrl");
             }
           }
@@ -1155,7 +1159,7 @@ class EventService {
       final encodedDescription = Uri.encodeComponent(description);
 
       final url = Uri.parse(
-        "https://api.schoolnxpro.com/api/FileUploadDownload1/UploadPhoto"
+        "${ApiUrls.baseUrl}FileUploadDownload1/UploadPhoto"
         "?description=$encodedDescription&employeeId=$employeeId&sectionId=$sectionId&eventId=$eventId", // ✅ ADD eventId
       );
 
@@ -1220,7 +1224,7 @@ class EventService {
             // If no URL but we have filename, construct the server URL
             if (serverUrl == null && jsonResponse['filename'] != null && instituteId != null) {
               final responseFilename = jsonResponse['filename'] as String;
-              serverUrl = "https://api.schoolnxpro.com/api/EventWithImages/download/$instituteId/$eventId/$responseFilename";
+              serverUrl = "${ApiUrls.baseUrl}EventWithImages/download/$instituteId/$eventId/$responseFilename";
               print("🔗 Constructed server URL from filename: $serverUrl");
             }
           }
@@ -1279,72 +1283,94 @@ class EventService {
   static Future<Map<String, dynamic>> createEvent({
     required DateTime eventDate,
     required String eventName,
-    required String sectionId,     // String because Postman sends as text
-    required String courseId,      // String because Postman sends as text
+    required String sectionId,
+    required String courseId,
     required int employeeId,
-    required File imageFile,       // now required (as per your UI)
-    String? instituteId,           // optional, will fallback
+    File? imageFile, // ✅ OPTIONAL
+    String? instituteId,
   }) async {
     try {
+      debugPrint("create event called");
+
       // ── Get token ───────────────────────────────────────────────────────
-      String? token = await MySharedPreferences.instance.getStringValue("token");
+      String? token =
+      await MySharedPreferences.instance.getStringValue("token");
 
       // ── Get / fallback instituteId ─────────────────────────────────────
-      instituteId ??= await MySharedPreferences.instance.getStringValue("instituteId");
+      instituteId ??=
+      await MySharedPreferences.instance.getStringValue("instituteId");
+
       instituteId ??= "10085";
 
       // ── Format date ─────────────────────────────────────────────────────
       final formattedDate = DateFormat('yyyy-MM-dd').format(eventDate);
 
-      // ── Build multipart request ────────────────────────────────────────
-      final uri = Uri.parse("${ApiUrls.baseUrl}Event/CreateEvent");
+      // ── Build multipart request ─────────────────────────────────────────
+      final uri = Uri.parse("${ApiUrls.baseUrl}event/create-event");
 
       var request = http.MultipartRequest('POST', uri);
 
-      // Headers
+      // ── Headers ─────────────────────────────────────────────────────────
       request.headers.addAll({
         'Accept': 'application/json',
-        if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+        if (token != null && token.isNotEmpty)
+          'Authorization': 'Bearer $token',
       });
 
-      // ── Text fields (exact keys from Postman) ──────────────────────────
+      // ── Text fields ─────────────────────────────────────────────────────
       request.fields.addAll({
         'EventName': eventName.trim(),
         'EventDate': formattedDate,
-        'SectionId': sectionId,           // string
-        'CourseId': courseId,             // string
+        'SectionId': sectionId,
+        'CourseId': courseId,
         'EmployeeId': employeeId.toString(),
         'InstituteId': instituteId,
       });
 
-      // ── Add image file (key = "File") ──────────────────────────────────
-      if (!await imageFile.exists()) {
-        return {
-          'success': false,
-          'error': 'Image file does not exist',
-        };
+      // ── Add image ONLY if selected ──────────────────────────────────────
+      if (imageFile != null) {
+        // Check file exists
+        if (!await imageFile.exists()) {
+          return {
+            'success': false,
+            'error': 'Image file does not exist',
+          };
+        }
+
+        final fileName =
+            imageFile.path.split(Platform.pathSeparator).last;
+
+        final extension =
+        fileName.split('.').last.toLowerCase();
+
+        String mimeType = 'image/jpeg';
+
+        if (extension == 'png') {
+          mimeType = 'image/png';
+        } else if (extension == 'webp') {
+          mimeType = 'image/webp';
+        }
+
+        final multipartFile = await http.MultipartFile.fromPath(
+          'File',
+          imageFile.path,
+          filename: fileName,
+          contentType: MediaType.parse(mimeType),
+        );
+
+        request.files.add(multipartFile);
+
+        print(
+          "📎 File: $fileName "
+              "(${(await imageFile.length() / 1024).toStringAsFixed(1)} KB)",
+        );
+      } else {
+        print("📎 No image selected - sending without image");
       }
-
-      final fileName = imageFile.path.split(Platform.pathSeparator).last;
-      final extension = fileName.split('.').last.toLowerCase();
-
-      String mimeType = 'image/jpeg';
-      if (extension == 'png') mimeType = 'image/png';
-      if (extension == 'webp') mimeType = 'image/webp';
-
-      final multipartFile = await http.MultipartFile.fromPath(
-        'File',               // ← VERY IMPORTANT: exact key from Postman
-        imageFile.path,
-        filename: fileName,
-        contentType: MediaType.parse(mimeType),
-      );
-
-      request.files.add(multipartFile);
 
       // ── Send request ───────────────────────────────────────────────────
       print("📤 Sending multipart request to: $uri");
       print("📋 Fields: ${request.fields}");
-      print("📎 File: $fileName (${(await imageFile.length() / 1024).toStringAsFixed(1)} KB)");
 
       final streamedResponse = await request.send().timeout(
         const Duration(seconds: 60),
@@ -1362,12 +1388,17 @@ class EventService {
         try {
           jsonData = jsonDecode(response.body);
         } catch (e) {
-          print("⚠️ Response is not valid JSON: ${response.body}");
+          print(
+            "⚠️ Response is not valid JSON: ${response.body}",
+          );
         }
 
         final success = jsonData['success'] == true;
-        final message = jsonData['message']?.toString() ?? 'Event created';
-        final eventId = jsonData['eventId']?.toString() ?? 'unknown';
+        final message =
+            jsonData['message']?.toString() ?? 'Event created';
+
+        final eventId =
+            jsonData['eventId']?.toString() ?? 'unknown';
 
         return {
           'success': success,
@@ -1377,13 +1408,20 @@ class EventService {
           'statusCode': response.statusCode,
         };
       } else {
-        String errorMsg = 'Failed to create event (HTTP ${response.statusCode})';
+        String errorMsg =
+            'Failed to create event (HTTP ${response.statusCode})';
 
         try {
           final err = jsonDecode(response.body);
-          errorMsg = err['message'] ?? err['error'] ?? response.body;
+
+          errorMsg =
+              err['message'] ??
+                  err['error'] ??
+                  response.body;
         } catch (_) {
-          errorMsg = response.body.isNotEmpty ? response.body : errorMsg;
+          errorMsg = response.body.isNotEmpty
+              ? response.body
+              : errorMsg;
         }
 
         return {
@@ -1513,7 +1551,7 @@ class EventService {
         // },
         {
           'method': 'multipart',
-          'endpoint': 'https://api.schoolnxpro.com/api/Event/CreateEvent',
+          'endpoint': '${ApiUrls.baseUrl}Event/CreateEvent',
 
         },
       ];
@@ -1631,7 +1669,7 @@ class EventService {
           // final uri = Uri.parse('https://api.schoolnxpro.com/api/Event/CreateEvent').replace(
           //   queryParameters: queryParams,
           // );
-          final uri = Uri.parse('https://api.schoolnxpro.com/api/Event/CreateEvent');
+          final uri = Uri.parse('${ApiUrls.baseUrl}Event/CreateEvent');
           final response = await client.post(
             uri,
             headers: {
@@ -1640,7 +1678,7 @@ class EventService {
             },
           ).timeout(const Duration(seconds: 10));
 
-          print("📥 Create Event URL : https://api.schoolnxpro.com/api/Event/CreateEvent");
+          print("📥 Create Event URL : ${ApiUrls.baseUrl}Event/CreateEvent");
           print("📥 Create Event (Query Params) Response Status: ${response.statusCode}");
           print("📥 Create Event Response Body: ${response.body}");
 
@@ -1694,7 +1732,7 @@ class EventService {
         try {
           print("🔄 Attempting PUT request to EventWithImages endpoint...");
           final putResponse = await client.put(
-            Uri.parse("https://api.schoolnxpro.com/api/EventWithImages"),
+            Uri.parse("${ApiUrls.baseUrl}EventWithImages"),
             headers: {
               'Content-Type': 'application/json',
               if (accessToken != null) 'Authorization': 'Bearer $accessToken',
@@ -1803,7 +1841,7 @@ class EventService {
 
           // Try POST to Event endpoint
           final response = await client.post(
-            Uri.parse("https://api.schoolnxpro.com/api/Event"),
+            Uri.parse("${ApiUrls.baseUrl}Event"),
             headers: {
               'Content-Type': 'application/json',
               if (accessToken != null) 'Authorization': 'Bearer $accessToken',
@@ -1811,7 +1849,7 @@ class EventService {
             body: json.encode(eventData),
           ).timeout(const Duration(seconds: 10));
 
-          debugPrint("Api Event url : https://api.schoolnxpro.com/api/Event");
+          debugPrint("Api Event url : ${ApiUrls.baseUrl}Event");
           debugPrint("Api Event response : ${response.body.toString()}");
 
           if (response.statusCode == 200 || response.statusCode == 201) {
@@ -1937,7 +1975,8 @@ class _EmployeeEventScreenState extends State<EmployeeEventScreen> {
       String? accessToken = await MySharedPreferences.instance.getStringValue("token");
       String? instituteId = await MySharedPreferences.instance.getStringValue("instituteId") ?? "10085";
 
-      final uri = Uri.parse("${ApiUrls.baseUrl}Event/EditEvent");
+      // final uri = Uri.parse("${ApiUrls.baseUrl}Event/EditEvent");
+      final uri = Uri.parse("${ApiUrls.baseUrl}event/edit-event");
 
       var request = http.MultipartRequest('PUT', uri);
 
@@ -1960,7 +1999,7 @@ class _EmployeeEventScreenState extends State<EmployeeEventScreen> {
       if (extension == 'webp') mimeType = 'image/webp';
 
       final multipartFile = await http.MultipartFile.fromPath(
-        'NewImages',                    // ← Critical: Must match API param
+        'NewImages[]',                    // ← Critical: Must match API param
         newImageFile.path,
         filename: fileName,
         contentType: MediaType.parse(mimeType),
@@ -2438,15 +2477,15 @@ class _EmployeeEventScreenState extends State<EmployeeEventScreen> {
                                 Utils.toastMessage("Please select Medium");
                                 return;
                               }
-                              if (selectedImage == null) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text("Please select an image"),
-                                    backgroundColor: Colors.red,
-                                  ),
-                                );
-                                return;
-                              }
+                              // if (selectedImage == null) {
+                              //   ScaffoldMessenger.of(context).showSnackBar(
+                              //     const SnackBar(
+                              //       content: Text("Please select an image"),
+                              //       backgroundColor: Colors.red,
+                              //     ),
+                              //   );
+                              //   return;
+                              // }
 
                               // Get employeeId
                               String? employeeIdStr;
@@ -2487,13 +2526,14 @@ class _EmployeeEventScreenState extends State<EmployeeEventScreen> {
                                 ),
                               );
 
+                              debugPrint("selected image : $selectedImage");
                               // Create event
                               // final sectionId = selectedSection!['sectionId'] as int;
                               final result = await EventService.createEvent(
                                 eventDate: selectedDate!,
                                 eventName: eventNameController.text.trim(),
                                 sectionId: "${selectedSections?.sectionId.toString()}",
-                                imageFile: selectedImage!,
+                                imageFile: selectedImage,
                                 employeeId: employeeId,
                                 courseId:"${selectedCourse?.courseId.toString()}",
                               );
@@ -2581,14 +2621,20 @@ class _EmployeeEventScreenState extends State<EmployeeEventScreen> {
 
       String? instituteId = await MySharedPreferences.instance.getStringValue("instituteId");
       instituteId ??= "10085";
-
+      final token = await MySharedPreferences.instance.getStringValue("token") ?? "";
       final url = Uri.parse(
-        "${ApiUrls.baseUrl}Event/GetEventCalendar?instituteId=$instituteId&year=$year&month=$month",
+        // "${ApiUrls.baseUrl}Event/GetEventCalendar?instituteId=$instituteId&year=$year&month=$month",
+        "${ApiUrls.baseUrl}events/my?instituteId=$instituteId&year=$year&month=$month",
       );
 
       debugPrint("📡 Calling GetEventCalendar: $url");
 
-      final response = await client.get(url);
+      final response = await client.get(url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
 
       if (response.statusCode == 200) {
         final eventListModel = eventListModelFromJson(response.body);

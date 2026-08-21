@@ -16,9 +16,11 @@ import 'package:school_nx_pro/screens/employee/screens/employee_holiday_screen.d
 import 'package:school_nx_pro/theme/app_assets.dart';
 import 'package:school_nx_pro/theme/app_colors.dart';
 import 'package:school_nx_pro/theme/font_theme.dart';
+import 'package:school_nx_pro/utils/api_urls.dart';
 import 'package:school_nx_pro/utils/enum.dart';
 import 'package:school_nx_pro/utils/my_sharepreferences.dart';
 import 'package:school_nx_pro/utils/http_client_manager.dart';
+import 'package:school_nx_pro/utils/utils.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class EmployeeDashboard extends StatefulWidget {
@@ -209,8 +211,13 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
                           // Next Holidays
                           FutureBuilder<http.Response>(
                             future: HttpClientManager.instance.getClient().get(
-                              Uri.parse("https://api.schoolnxpro.com/api/Holiday?instituteId=10085"),
-                              headers: {'Content-Type': 'application/json'},
+                              // Uri.parse("${ApiUrls.baseUrl}Holiday?instituteId=10085"),
+                              Uri.parse("${ApiUrls.baseUrl}holidays/my?"
+                                  "instituteId=${MySharedPreferences.instance.getStringValue("instituteId") ?? "10085"}"),
+                              headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': 'Bearer ${MySharedPreferences.instance.getStringValue("token") ?? ""}',
+                              },
                             ),
                             builder: (context, snapshot) {
                               if (snapshot.connectionState == ConnectionState.waiting) {
@@ -411,13 +418,14 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
               widget: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
+                  // Text(
+                  //   event.eventDate.toString().split(" ")[0],
+                  //   style: normalBlack,
+                  // ),
+                  // Text("-", style: normalBlack),
                   Text(
-                    event.eventDate.toString().split(" ")[0],
-                    style: normalBlack,
-                  ),
-                  Text("-", style: normalBlack),
-                  Text(
-                    event.eventDate.toString().split(" ")[0],
+                    Utils.convertDateFormat(inputDate: event.eventDate.toString(),
+                        inputFormat: "yyyy-MM-dd'T'HH:mm:ss", outputFormat: "dd MMM yyyy"),
                     style: normalBlack,
                   ),
                 ],

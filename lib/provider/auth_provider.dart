@@ -113,6 +113,7 @@ class AuthProvider extends ChangeNotifier {
               .setStringValue('employeeName', raw['employeeName'] ?? '');
           await MySharedPreferences.instance.setStringValue(
               'employeeID', raw['employeeID']?.toString() ?? '');
+          await MySharedPreferences.instance.setStringValue('employeeUserId', _employeeUserId.toString());
 
           final employeeDashboards = raw['additionalData']?['employeeDashboard'];
           if (employeeDashboards is List && employeeDashboards.isNotEmpty) {

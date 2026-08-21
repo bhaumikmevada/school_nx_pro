@@ -36,7 +36,9 @@ class ApiUrls {
   static const medium = 'medium';
   static const stream = 'stream';
   static const substream = 'substream';
-  static const studentInCSMSS = 'studentInCSMSS/Students';
+  // static const studentInCSMSS = 'studentInCSMSS/Students';
+  static const studentInCSMSS = 'student-in-csmss/students';
   // static const submitAttandancewithCSMSS = 'submitAttandancewithCSMSS';
-  static const submitAttandancewithCSMSS = 'SubmitAttendance';
+  // static const submitAttandancewithCSMSS = 'SubmitAttendance';
+  static const submitAttandancewithCSMSS = 'submit-attendance';
 }
