@@ -1,4 +1,5 @@
 
+const appName = "SchoolFx";
 const mobileNo = "Mobile No.";
 const password = "Password";
 const forgotPassword = "Forgot Password?";

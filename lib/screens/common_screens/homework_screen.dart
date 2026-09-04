@@ -25,12 +25,23 @@ class HomeworkScreen extends StatefulWidget {
 
 class _HomeworkScreenState extends State<HomeworkScreen> {
   List<dynamic> homeworkList = [];
+
+  // NOTE: classesList is kept as List<dynamic> (raw map data straight from the
+  // "classes" API: {classId, className, subClasses:[{subClassId, subClassName}]}).
+  // I removed the ClassListModel typing since the model file wasn't shared —
+  // if you already have a proper model with these fields, you can swap this
+  // back to List<ClassListModel> and update the two spots marked below.
+  List<dynamic> classesList = [];
+
   bool isLoading = false;
 
   // Dialog fields
   DateTime? fromDate;
   DateTime? toDate;
   String? selectedSubject;
+  String? selectedClass;      // holds classId
+  String? selectedSubClass;   // holds subClassId
+  List<dynamic> subClassOptions = []; // subClasses of the currently selected class
   File? attachmentFile;
 
   List<dynamic> subjects = [];
@@ -43,6 +54,118 @@ class _HomeworkScreenState extends State<HomeworkScreen> {
     super.initState();
     fetchSubjects();
     fetchHomeworkList();
+    fetchClasses();
+  }
+
+  // ================== FETCH CLASSES (with subclasses) ==================
+  Future<void> fetchClasses() async {
+    String? instituteId =
+        await MySharedPreferences.instance.getStringValue("instituteId") ?? "10085";
+
+    try {
+      final token = await MySharedPreferences.instance.getStringValue("token") ?? "";
+
+      final response = await http.get(
+        Uri.parse(
+          "${ApiUrls.baseUrl}${ApiUrls.classesList}?instituteId=$instituteId",
+        ),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      debugPrint("classes url : ${ApiUrls.baseUrl}${ApiUrls.classesList}?instituteId=$instituteId");
+      debugPrint("classes response : ${response.body}");
+
+      if (response.statusCode == 200) {
+        final jsonData = jsonDecode(response.body);
+
+        List<dynamic> tempList = [];
+
+        if (jsonData is Map<String, dynamic>) {
+          if (jsonData['data'] is List) {
+            tempList = jsonData['data'];
+          }
+        } else if (jsonData is List) {
+          tempList = jsonData;
+        }
+
+        setState(() => classesList = tempList);
+      }
+    } catch (e) {
+      debugPrint("Error fetching classes list: $e");
+    }
+  }
+
+  // ================== DELETE HOMEWORK ==================
+  Future<void> deleteHomework(BuildContext context, String homeworkId) async {
+    // show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator(color: Colors.white)),
+    );
+
+    try {
+      final token = await MySharedPreferences.instance.getStringValue("token") ?? "";
+
+      final response = await http.delete(
+        Uri.parse(
+          "${ApiUrls.baseUrl}homework-upload1/delete/$homeworkId",
+        ),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      debugPrint("deleteHomework url : ${ApiUrls.baseUrl}homework-upload1/delete/$homeworkId");
+      debugPrint("deleteHomework response : ${response.body}");
+
+      // close loading dialog
+      if (context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+
+      if (response.statusCode == 200) {
+        final jsonData = jsonDecode(response.body);
+
+        if (jsonData['success'] == true) {
+          // refresh list so the deleted entry is removed
+          await fetchHomeworkList();
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(jsonData['message']?.toString() ?? "Homework deleted successfully"),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(jsonData['message']?.toString() ?? "Failed to delete homework")),
+            );
+          }
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Failed to delete homework")),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint("Error delete homework : $e");
+      if (context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error deleting homework: $e")),
+        );
+      }
+    }
   }
 
   // ================== FETCH HOMEWORK LIST ==================
@@ -60,7 +183,6 @@ class _HomeworkScreenState extends State<HomeworkScreen> {
 
       final response = await http.get(
         Uri.parse(
-          // "${ApiUrls.baseUrl}HomeworkUpload1/list?instituteId=$instituteId&allotTeacherId=$allottedTeacherId",
           "${ApiUrls.baseUrl}homework/list?instituteId=$instituteId&subjectId=$selectedSubject&allotTeacherId=$allottedTeacherId",
         ),
         headers: {
@@ -99,13 +221,11 @@ class _HomeworkScreenState extends State<HomeworkScreen> {
 
   // ================== FETCH SUBJECTS ==================
   Future<void> fetchSubjects() async {
-
     try {
       final token = await MySharedPreferences.instance.getStringValue("token") ?? "";
       String? instituteId =
           await MySharedPreferences.instance.getStringValue("instituteId") ?? "10085";
       final response = await http.get(
-        // Uri.parse("${ApiUrls.baseUrl}Subject?instituteId=$instituteId"),
         Uri.parse("${ApiUrls.baseUrl}subject?instituteId=$instituteId"),
         headers: {
           'Content-Type': 'application/json',
@@ -130,6 +250,14 @@ class _HomeworkScreenState extends State<HomeworkScreen> {
     }
   }
 
+  // Helper: returns the subClasses list for a given classId from classesList
+  List<dynamic> _getSubClassesForClass(String? classId) {
+    if (classId == null) return [];
+    final matched = classesList.where((c) => c['classId'].toString() == classId).toList();
+    if (matched.isEmpty) return [];
+    return (matched.first['subClasses'] as List<dynamic>?) ?? [];
+  }
+
   // ================== ADD HOMEWORK DIALOG ==================
   Future<void> addHomeworkDialog() async {
     final titleCtrl = TextEditingController();
@@ -138,6 +266,9 @@ class _HomeworkScreenState extends State<HomeworkScreen> {
     fromDate = null;
     toDate = null;
     selectedSubject = null;
+    selectedClass = null;
+    selectedSubClass = null;
+    subClassOptions = [];
     attachmentFile = null;
 
     await showDialog(
@@ -184,6 +315,8 @@ class _HomeworkScreenState extends State<HomeworkScreen> {
                         style: const TextStyle(color: Colors.black),
                       ),
                     ),
+
+                    // ---------------- SUBJECT DROPDOWN ----------------
                     DropdownButtonFormField<String>(
                       decoration: const InputDecoration(labelText: "Subject"),
                       value: selectedSubject,
@@ -193,6 +326,45 @@ class _HomeworkScreenState extends State<HomeworkScreen> {
                       )).toList(),
                       onChanged: isSaving ? null : (val) => setStateDialog(() => selectedSubject = val),
                     ),
+                    const SizedBox(height: 8),
+
+                    // ---------------- CLASS DROPDOWN ----------------
+                    DropdownButtonFormField<String>(
+                      decoration: const InputDecoration(labelText: "Class"),
+                      value: selectedClass,
+                      items: classesList.map((c) => DropdownMenuItem<String>(
+                        value: c["classId"]?.toString(),
+                        child: Text(c["className"]?.toString() ?? ''),
+                      )).toList(),
+                      onChanged: isSaving ? null : (val) {
+                        setStateDialog(() {
+                          selectedClass = val;
+                          // reset subclass whenever class changes
+                          selectedSubClass = null;
+                          subClassOptions = _getSubClassesForClass(val);
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 8),
+
+                    // ---------------- SUBCLASS DROPDOWN (depends on class) ----------------
+                    DropdownButtonFormField<String>(
+                      decoration: InputDecoration(
+                        labelText: "Sub Class",
+                        hintText: selectedClass == null ? "Select class first" : null,
+                      ),
+                      value: selectedSubClass,
+                      items: subClassOptions.map((sc) => DropdownMenuItem<String>(
+                        value: sc["subClassId"]?.toString(),
+                        child: Text(sc["subClassName"]?.toString() ?? ''),
+                      )).toList(),
+                      // disabled until a class is selected and it has subclasses
+                      onChanged: (isSaving || selectedClass == null || subClassOptions.isEmpty)
+                          ? null
+                          : (val) => setStateDialog(() => selectedSubClass = val),
+                    ),
+                    const SizedBox(height: 8),
+
                     TextField(
                       controller: titleCtrl,
                       enabled: !isSaving,
@@ -230,6 +402,7 @@ class _HomeworkScreenState extends State<HomeworkScreen> {
                   onPressed: isSaving
                       ? null
                       : () async {
+                    // ---------------- VALIDATION ----------------
                     if (titleCtrl.text.trim().isEmpty ||
                         descCtrl.text.trim().isEmpty ||
                         selectedSubject == null ||
@@ -237,6 +410,20 @@ class _HomeworkScreenState extends State<HomeworkScreen> {
                         toDate == null) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text("Please fill all fields")),
+                      );
+                      return;
+                    }
+
+                    if (selectedClass == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Please select class")),
+                      );
+                      return;
+                    }
+
+                    if (selectedSubClass == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Please select sub class")),
                       );
                       return;
                     }
@@ -250,29 +437,31 @@ class _HomeworkScreenState extends State<HomeworkScreen> {
                     );
 
                     try {
-                      // final uri = Uri.parse("${ApiUrls.baseUrl}HomeworkUpload1/add");
                       final uri = Uri.parse("${ApiUrls.baseUrl}homework-upload1/add");
                       final token = await MySharedPreferences.instance.getStringValue("token") ?? "";
                       String? instituteUserId = await MySharedPreferences.instance.getStringValue("employeeUserId");
                       String? allottedTeacherId = await MySharedPreferences.instance.getStringValue("allottedTeacherId");
                       String instituteId = await MySharedPreferences.instance.getStringValue("instituteId") ?? "10085";
 
+                      debugPrint("add homework url : ${ApiUrls.baseUrl}homework-upload1/add");
                       debugPrint("add homework instituteUserId : $instituteUserId, allottedTeacherId : $allottedTeacherId");
 
                       var request = http.MultipartRequest('POST', uri);
                       request.headers['Authorization'] = 'Bearer $token';
                       request.fields['instituteId'] = instituteId;
                       request.fields['subjectId'] = selectedSubject!;
+                      request.fields['classId'] = selectedClass!;
+                      request.fields['subClassId'] = selectedSubClass!;
                       request.fields['homeWorkName'] = titleCtrl.text.trim();
                       request.fields['homeWorkDescription'] = descCtrl.text.trim();
                       request.fields['homeWorkDate'] = DateFormat('dd-MM-yyyy').format(fromDate!);
                       request.fields['homeWorkDueOnDate'] = DateFormat('dd-MM-yyyy').format(toDate!);
                       request.fields['allotTeacherId'] = allottedTeacherId ?? "";
-                      request.fields['instituteUserId'] =  "90563";
+                      request.fields['instituteUserId'] = "90563";
 
                       debugPrint("attachmentFile : ${attachmentFile?.path}");
-
                       debugPrint("request field add homework : ${request.fields}");
+
                       if (attachmentFile != null) {
                         request.files.add(await http.MultipartFile.fromPath(
                           'file',
@@ -287,11 +476,18 @@ class _HomeworkScreenState extends State<HomeworkScreen> {
                       debugPrint("Add Response: ${response.statusCode} - ${response.body}");
 
                       if (response.statusCode == 200 || response.statusCode == 201) {
+                        // close loader
                         if (context.mounted) {
                           Navigator.of(context, rootNavigator: true).pop();
-                          Navigator.of(dialogContext).pop();
-                          await fetchHomeworkList();
+                        }
+                        // close the add-homework dialog
+                        Navigator.of(dialogContext).pop();
 
+                        // refresh list in background
+                        fetchHomeworkList();
+
+                        // show success message on the main screen context
+                        if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text("Homework added successfully!"),
@@ -299,6 +495,7 @@ class _HomeworkScreenState extends State<HomeworkScreen> {
                             ),
                           );
                         }
+                        return; // dialog + its StatefulBuilder are gone now, don't touch setStateDialog below
                       } else {
                         throw Exception("Failed: ${response.body}");
                       }
@@ -309,10 +506,9 @@ class _HomeworkScreenState extends State<HomeworkScreen> {
                           SnackBar(content: Text("Failed to add homework: $e")),
                         );
                       }
-                    } finally {
-                      if (mounted) {
-                        setStateDialog(() => isSaving = false);
-                      }
+                      // dialog is still open in the failure case, so it's safe
+                      // to re-enable the Save button
+                      setStateDialog(() => isSaving = false);
                     }
                   },
                   child: isSaving
@@ -396,7 +592,10 @@ class _HomeworkScreenState extends State<HomeworkScreen> {
           itemCount: homeworkList.length,
           separatorBuilder: (_, __) => const SizedBox(height: 12),
           itemBuilder: (context, index) {
-            return _HomeworkCardWidget(homework: homeworkList[index]);
+            return _HomeworkCardWidget(
+              homework: homeworkList[index],
+              onDelete: (homeworkId) => deleteHomework(context, homeworkId),
+            );
           },
         ),
       ),
@@ -407,8 +606,12 @@ class _HomeworkScreenState extends State<HomeworkScreen> {
 // ================== CARD WITH VIEW ATTACHMENT API ==================
 class _HomeworkCardWidget extends StatelessWidget {
   final dynamic homework;
+  final Function(String homeworkId) onDelete;
 
-  const _HomeworkCardWidget({required this.homework});
+  const _HomeworkCardWidget({
+    required this.homework,
+    required this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -476,6 +679,38 @@ class _HomeworkCardWidget extends StatelessWidget {
                 _infoRow("Due On", homework['homeWorkDueOnDate']?.toString() ?? homework['toDate']?.toString() ?? '-'),
                 _attachmentRow(context, homework),
                 _infoRow("Description", homework['homeWorkDescription']?.toString() ?? ''),
+
+                Container(
+                  height: 1,
+                  color: AppColors.colorDADADA,
+                  margin: const EdgeInsets.only(bottom: 5),
+                ),
+
+                Container(
+                  alignment: Alignment.topRight,
+                  child: GestureDetector(
+                    onTap: () {
+                      final String? homeWorkId = homework['homeWorkId']?.toString();
+                      if (homeWorkId == null || homeWorkId.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text("Invalid homework id")),
+                        );
+                        return;
+                      }
+                      Utils.showAlertDialog(
+                        context,
+                        title: "Delete Homework",
+                        message: "Are you sure you want to delete this homework?",
+                        okButtonText: "Yes",
+                        cancelButtonText: "No",
+                        onOkPressed: () {
+                          onDelete(homeWorkId);
+                        },
+                      );
+                    },
+                    child: const Icon(Icons.delete_forever, color: Colors.red,),
+                  ),
+                )
               ],
             ),
           ),
@@ -507,7 +742,6 @@ class _HomeworkCardWidget extends StatelessWidget {
   Widget _attachmentRow(BuildContext context, dynamic hw) {
     final String? homeWorkId = hw['homeWorkId']?.toString();
 
-    // If no homeworkId or attachment, show "-"
     if (homeWorkId == null || homeWorkId.isEmpty) {
       return _infoRow("Attachment", "-");
     }
@@ -525,9 +759,7 @@ class _HomeworkCardWidget extends StatelessWidget {
             flex: 4,
             child: InkWell(
               onTap: () async {
-                // final downloadUrl = "${ApiUrls.baseUrl}HomeworkUpload1/download/$homeWorkId?homeworkId=$homeWorkId";
                 final downloadUrl = "${ApiUrls.baseUrl}homework-upload1/download/$homeWorkId";
-
                 final uri = Uri.parse(downloadUrl);
 
                 try {

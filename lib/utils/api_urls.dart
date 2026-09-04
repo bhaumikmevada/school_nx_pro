@@ -17,6 +17,8 @@ class ApiUrls {
   static const studentAttendanceUrl = "attendance/student";
   static const myHomework = "homework/my";
   static const dashboard = "dashboard/my";
+  static const classesList = "classes";
+  static const deleteHomework = "homework-upload1/delete";
 
   // Results
   static const termname = 'termname';

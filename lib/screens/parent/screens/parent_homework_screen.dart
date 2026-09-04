@@ -273,8 +273,8 @@ class _HomeworkCardWidget extends StatelessWidget {
             child: InkWell(
               onTap: () async {
                 // You can keep your existing download API or use the extensions URL
-                final downloadUrl =
-                    "${ApiUrls.baseUrl}HomeworkUpload1/download/$homeWorkId?homeworkId=$homeWorkId";
+                // final downloadUrl = "${ApiUrls.baseUrl}HomeworkUpload1/download/$homeWorkId?homeworkId=$homeWorkId";
+                final downloadUrl = "${ApiUrls.baseUrl}homework-upload1/download/$homeWorkId";
 
                 final uri = Uri.parse(downloadUrl);
 

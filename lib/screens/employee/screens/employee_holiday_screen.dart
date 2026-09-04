@@ -118,7 +118,6 @@ class _EmployeeHolidayScreenState extends State<EmployeeHolidayScreen> {
           await MySharedPreferences.instance.getStringValue("courseId") ??
               "11460";
 
-
       final url = Uri.parse(
         "${ApiUrls.baseUrl}holiday/create-holiday",
       );
@@ -188,6 +187,7 @@ class _EmployeeHolidayScreenState extends State<EmployeeHolidayScreen> {
   Future<bool> updateHoliday(
       HolidayItem holiday,
       String changeReason,
+      DateTime selectedDate,
       ) async {
     if (!mounted) return false;
 
@@ -203,7 +203,6 @@ class _EmployeeHolidayScreenState extends State<EmployeeHolidayScreen> {
     }
 
     try {
-
       final instituteId =
           await MySharedPreferences.instance.getStringValue("instituteId") ??
               "10085";
@@ -223,21 +222,7 @@ class _EmployeeHolidayScreenState extends State<EmployeeHolidayScreen> {
         "${ApiUrls.baseUrl}holiday/create-holiday",
       );
 
-      DateTime parsedDate;
-
-      try {
-        parsedDate = DateTime.parse(holiday.holidayOn);
-      } catch (e) {
-        debugPrint("Invalid holiday date: ${holiday.holidayOn}");
-
-        if (mounted) {
-          setState(() => isUpdating = false);
-        }
-
-        return false;
-      }
-
-      final holidayDate = parsedDate.toUtc().toIso8601String();
+      final holidayDate = selectedDate.toUtc().toIso8601String();
 
       // FORM-DATA
       final request = http.MultipartRequest("POST", url);
@@ -338,6 +323,7 @@ class _EmployeeHolidayScreenState extends State<EmployeeHolidayScreen> {
       }
     }
   }
+
   // ---------- Dialogs ----------
   void showAddHolidayDialog() {
     final reasonCtrl = TextEditingController();
@@ -410,19 +396,52 @@ class _EmployeeHolidayScreenState extends State<EmployeeHolidayScreen> {
   void showUpdateHolidayDialog(HolidayItem holiday) {
     final changeReasonCtrl = TextEditingController(text: holiday.holidayName);
 
+    // Current holiday date ko parse karke pre-select karo
+    DateTime selectedDate;
+    try {
+      selectedDate = DateTime.parse(holiday.holidayOn);
+    } catch (_) {
+      selectedDate = DateTime.now();
+    }
+
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setStateDialog) => AlertDialog(
           title: const Text("Update Holiday"),
-          content: TextField(
-            controller: changeReasonCtrl,
-            decoration: const InputDecoration(
-              labelText: "Change Reason",
-              hintText: "Enter new reason",
-            ),
-            maxLines: 3,
-            autofocus: true,
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: changeReasonCtrl,
+                decoration: const InputDecoration(
+                  labelText: "Change Reason",
+                  hintText: "Enter new reason",
+                ),
+                maxLines: 3,
+                autofocus: true,
+              ),
+              const SizedBox(height: 16),
+              // Date selection button - current date already selected
+              ElevatedButton(
+                onPressed: isUpdating
+                    ? null
+                    : () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime(2030),
+                    initialDate: selectedDate,
+                  );
+                  if (picked != null) {
+                    setStateDialog(() => selectedDate = picked);
+                  }
+                },
+                child: Text(
+                  DateFormat("dd MMM yyyy").format(selectedDate),
+                ),
+              ),
+            ],
           ),
           actions: [
             TextButton(
@@ -439,7 +458,11 @@ class _EmployeeHolidayScreenState extends State<EmployeeHolidayScreen> {
                   );
                   return;
                 }
-                final ok = await updateHoliday(holiday, changeReasonCtrl.text.trim());
+                final ok = await updateHoliday(
+                  holiday,
+                  changeReasonCtrl.text.trim(),
+                  selectedDate,
+                );
                 if (ctx.mounted && ok) Navigator.pop(ctx);
               },
               child: isUpdating

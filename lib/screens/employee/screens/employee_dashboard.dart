@@ -16,12 +16,15 @@ import 'package:school_nx_pro/screens/employee/screens/employee_holiday_screen.d
 import 'package:school_nx_pro/theme/app_assets.dart';
 import 'package:school_nx_pro/theme/app_colors.dart';
 import 'package:school_nx_pro/theme/font_theme.dart';
+import 'package:school_nx_pro/utils/StringUtils.dart';
 import 'package:school_nx_pro/utils/api_urls.dart';
 import 'package:school_nx_pro/utils/enum.dart';
 import 'package:school_nx_pro/utils/my_sharepreferences.dart';
 import 'package:school_nx_pro/utils/http_client_manager.dart';
 import 'package:school_nx_pro/utils/utils.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../../utils/CustomText.dart';
 
 class EmployeeDashboard extends StatefulWidget {
   final List<dynamic> children;
@@ -79,172 +82,374 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
       body: loading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: GestureDetector(
-                      // onTap: () {
-                      //   Navigator.push(
-                      //     context,
-                      //     MaterialPageRoute(
-                      //       builder: (context) => const ProfileScreen(
-                      //         userType: UserType.employee,
-                      //       ),
-                      //     ),
-                      //   );
-                      // },
-                      onTap: () async {
-                        final type = "Employee";
-
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => ProfileScreen(
-                              userType: UserType.employee,
-                              name: widget.loginData['userName'] ?? 'N/A',
-                              firstName: widget.loginData['firstName'] ?? 'N/A',
-                              lastName: widget.loginData['lastName'] ?? 'N/A',
-                              mobile: widget.loginData['mobileNo'] ?? "+91",
-                              type: type,
-                            ),
-                          ),
-                        ).then((result) {
-                          if (result != null && result is Map<String, dynamic>) {
-                            setState(() {
-                              employeeName = result['name'] ?? employeeName;
-                            });
-                          }
-                        });
-                      },
-                      child: Row(
-                        children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(100),
-                            child: Image.asset(
-                              AppImages.example,
-                              height: 70,
-                              width: 70,
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                          const SizedBox(width: 25),
-                          Expanded(
-                            child: Text(
-                              employeeName ?? "N/A",
-                              style: boldBlack.copyWith(fontSize: 23),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  Container(
-                    height: MediaQuery.of(context).size.height / 5,
-                    width: double.maxFinite,
-                    decoration: const BoxDecoration(
-                      color: AppColors.blue,
-                      borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(30),
-                        topRight: Radius.circular(30),
-                      ),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 20),
-                      child: Column(
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                            children: [
-                              _buildAttendanceState(
-                                icon: AppIcons.group,
-                                value: "301",
-                                label: "Total Students",
+              child: Container(
+                margin: EdgeInsets.all(20),
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: GestureDetector(
+                        // onTap: () {
+                        //   Navigator.push(
+                        //     context,
+                        //     MaterialPageRoute(
+                        //       builder: (context) => const ProfileScreen(
+                        //         userType: UserType.employee,
+                        //       ),
+                        //     ),
+                        //   );
+                        // },
+                        onTap: () async {
+                          final type = "Employee";
+                
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ProfileScreen(
+                                userType: UserType.employee,
+                                name: widget.loginData['userName'] ?? 'N/A',
+                                firstName: widget.loginData['firstName'] ?? 'N/A',
+                                lastName: widget.loginData['lastName'] ?? 'N/A',
+                                mobile: widget.loginData['mobileNo'] ?? "+91",
+                                type: type,
                               ),
-                              _buildAttendanceState(
-                                icon: AppIcons.manCheck,
-                                value: "230",
-                                label: "Student Present",
+                            ),
+                          ).then((result) {
+                            if (result != null && result is Map<String, dynamic>) {
+                              setState(() {
+                                employeeName = result['name'] ?? employeeName;
+                              });
+                            }
+                          });
+                        },
+                        child: Row(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(100),
+                              child: Image.asset(
+                                AppImages.example,
+                                height: 70,
+                                width: 70,
+                                fit: BoxFit.cover,
                               ),
-                              _buildAttendanceState(
-                                icon: AppIcons.manCross,
-                                value: "71",
-                                label: "Student Absent",
+                            ),
+                            const SizedBox(width: 25),
+                            Expanded(
+                              child: Text(
+                                employeeName ?? "N/A",
+                                style: boldBlack.copyWith(fontSize: 23),
                               ),
-                            ],
-                          ),
-                        ],
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                  Container(
-                    transform: Matrix4.translationValues(0.0, -25.0, 0.0),
-                    decoration: const BoxDecoration(
-                      color: AppColors.bgColor,
-                      borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(30),
-                        topRight: Radius.circular(30),
-                      ),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        children: [
-                          // Today's Homework
-                          todaysHomework(context),
-                          // Events
-                          FutureBuilder<List<EventModel>>(
-                            future: EventService.fetchEvents(),
-                            builder: (context, snapshot) {
-                              if (snapshot.connectionState == ConnectionState.waiting) {
-                                return const Center(child: CircularProgressIndicator());
-                              } else if (snapshot.hasError) {
-                                return Center(child: Text("Error: ${snapshot.error}"));
-                              } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                                return const Center(child: Text("No Events Found"));
-                              } else {
-                                return events(context, snapshot.data!);
-                              }
+                    const SizedBox(height: 20),
+                
+                    Row(
+                      children: [
+                
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (context) =>
+                                    HomeworkScreen(userType: UserType.parent)
+                                ),
+                              );
                             },
-                          ),
-                          // Next Holidays
-                          FutureBuilder<http.Response>(
-                            future: HttpClientManager.instance.getClient().get(
-                              // Uri.parse("${ApiUrls.baseUrl}Holiday?instituteId=10085"),
-                              Uri.parse("${ApiUrls.baseUrl}holidays/my?"
-                                  "instituteId=${MySharedPreferences.instance.getStringValue("instituteId") ?? "10085"}"),
-                              headers: {
-                                'Content-Type': 'application/json',
-                                'Authorization': 'Bearer ${MySharedPreferences.instance.getStringValue("token") ?? ""}',
-                              },
+                            child: Container(
+                              padding: const EdgeInsets.all(25),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(10),
+                                color: Colors.white,
+                                border: Border.all(color: AppColors.colorDADADA, width: 1),
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: Colors.black12,
+                                    blurRadius: 4,
+                                    offset: Offset(0, 3),
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  Image.asset(
+                                    AppIcons.homeWork,
+                                    height: 30,
+                                    width: 30,
+                                    color: AppColors.blue,
+                                  ),
+                                  const SizedBox(height: 5,),
+                                  CustomText.TextMedium(
+                                    menuHomeWork,
+                                    fontSize: 14.0,
+                                    color: AppColors.blackColor, // Dynamic text color
+                                  )
+                                ],
+                              ),
                             ),
-                            builder: (context, snapshot) {
-                              if (snapshot.connectionState == ConnectionState.waiting) {
-                                return const Center(child: CircularProgressIndicator());
-                              } else if (snapshot.hasError) {
-                                return Center(child: Text("Error: ${snapshot.error}"));
-                              } else if (!snapshot.hasData || snapshot.data!.statusCode != 200) {
-                                return const Center(child: Text("No Holidays Found"));
-                              } else {
-                                final body = jsonDecode(snapshot.data!.body);
-                                final holidays = body["data"] ?? [];
-                                if (holidays.isEmpty) {
-                                  return const Center(child: Text("No Holidays Found"));
-                                }
-                                return nextHolidays(context, holidays);
-                              }
-                            },
                           ),
-
-                          // Gallery
-                          gallery(context),
-                          SizedBox(height: MediaQuery.of(context).size.height / 30),
-                        ],
-                      ),
+                        ),
+                
+                        const SizedBox(width: 20,),
+                
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (context) =>
+                                    EmployeeEventScreen(userType: UserType.parent)
+                                ),
+                              );
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(25),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(10),
+                                color: Colors.white,
+                                border: Border.all(color: AppColors.colorDADADA, width: 1),
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: Colors.black12,
+                                    blurRadius: 4,
+                                    offset: Offset(0, 3),
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  Image.asset(
+                                    AppIcons.schoolCircular,
+                                    height: 30,
+                                    width: 30,
+                                    color: AppColors.blue,
+                                  ),
+                                  const SizedBox(height: 5,),
+                                  CustomText.TextMedium(
+                                    menuEvent,
+                                    fontSize: 14.0,
+                                    color: AppColors.blackColor, // Dynamic text color
+                                  )
+                                ],
+                              ),
+                            ),
+                          ),
+                        )
+                
+                      ],
                     ),
-                  )
-                ],
+
+                    const SizedBox(height: 20,),
+
+                    Row(
+                      children: [
+                
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (context) =>
+                                    EmployeeGalleryScreen()
+                                ),
+                              );
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(25),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(10),
+                                color: Colors.white,
+                                border: Border.all(color: AppColors.colorDADADA, width: 1),
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: Colors.black12,
+                                    blurRadius: 4,
+                                    offset: Offset(0, 3),
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  Image.asset(
+                                    AppIcons.gallery,
+                                    height: 30,
+                                    width: 30,
+                                    color: AppColors.blue,
+                                  ),
+                                  const SizedBox(height: 5,),
+                                  CustomText.TextMedium(
+                                    menuGallery,
+                                    fontSize: 14.0,
+                                    color: AppColors.blackColor, // Dynamic text color
+                                  )
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                
+                        const SizedBox(width: 20,),
+                
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (context) =>
+                                    EmployeeHolidayScreen(userType: UserType.parent)
+                                ),
+                              );
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(25),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(10),
+                                color: Colors.white,
+                                border: Border.all(color: AppColors.colorDADADA, width: 1),
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: Colors.black12,
+                                    blurRadius: 4,
+                                    offset: Offset(0, 3),
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  Image.asset(
+                                    AppIcons.result,
+                                    height: 30,
+                                    width: 30,
+                                    color: AppColors.blue,
+                                  ),
+                                  const SizedBox(height: 5,),
+                                  CustomText.TextMedium(
+                                    menuHoliday,
+                                    fontSize: 14.0,
+                                    color: AppColors.blackColor, // Dynamic text color
+                                  )
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                
+                      ],
+                    ),
+                
+                    // Container(
+                    //   height: MediaQuery.of(context).size.height / 5,
+                    //   width: double.maxFinite,
+                    //   decoration: const BoxDecoration(
+                    //     color: AppColors.blue,
+                    //     borderRadius: BorderRadius.only(
+                    //       topLeft: Radius.circular(30),
+                    //       topRight: Radius.circular(30),
+                    //     ),
+                    //   ),
+                    //   child: Padding(
+                    //     padding: const EdgeInsets.symmetric(vertical: 20),
+                    //     child: Column(
+                    //       children: [
+                    //         Row(
+                    //           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    //           children: [
+                    //             _buildAttendanceState(
+                    //               icon: AppIcons.group,
+                    //               value: "301",
+                    //               label: "Total Students",
+                    //             ),
+                    //             _buildAttendanceState(
+                    //               icon: AppIcons.manCheck,
+                    //               value: "230",
+                    //               label: "Student Present",
+                    //             ),
+                    //             _buildAttendanceState(
+                    //               icon: AppIcons.manCross,
+                    //               value: "71",
+                    //               label: "Student Absent",
+                    //             ),
+                    //           ],
+                    //         ),
+                    //       ],
+                    //     ),
+                    //   ),
+                    // ),
+                    // Container(
+                    //   transform: Matrix4.translationValues(0.0, -25.0, 0.0),
+                    //   decoration: const BoxDecoration(
+                    //     color: AppColors.bgColor,
+                    //     borderRadius: BorderRadius.only(
+                    //       topLeft: Radius.circular(30),
+                    //       topRight: Radius.circular(30),
+                    //     ),
+                    //   ),
+                    //   child: Padding(
+                    //     padding: const EdgeInsets.all(20),
+                    //     child: Column(
+                    //       children: [
+                    //         // Today's Homework
+                    //         todaysHomework(context),
+                    //         // Events
+                    //         FutureBuilder<List<EventModel>>(
+                    //           future: EventService.fetchEvents(),
+                    //           builder: (context, snapshot) {
+                    //             if (snapshot.connectionState == ConnectionState.waiting) {
+                    //               return const Center(child: CircularProgressIndicator());
+                    //             } else if (snapshot.hasError) {
+                    //               return Center(child: Text("Error: ${snapshot.error}"));
+                    //             } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                    //               return const Center(child: Text("No Events Found"));
+                    //             } else {
+                    //               return events(context, snapshot.data!);
+                    //             }
+                    //           },
+                    //         ),
+                    //         // Next Holidays
+                    //         FutureBuilder<http.Response>(
+                    //           future: HttpClientManager.instance.getClient().get(
+                    //             // Uri.parse("${ApiUrls.baseUrl}Holiday?instituteId=10085"),
+                    //             Uri.parse("${ApiUrls.baseUrl}holidays/my?"
+                    //                 "instituteId=${MySharedPreferences.instance.getStringValue("instituteId") ?? "10085"}"),
+                    //             headers: {
+                    //               'Content-Type': 'application/json',
+                    //               'Authorization': 'Bearer ${MySharedPreferences.instance.getStringValue("token") ?? ""}',
+                    //             },
+                    //           ),
+                    //           builder: (context, snapshot) {
+                    //             if (snapshot.connectionState == ConnectionState.waiting) {
+                    //               return const Center(child: CircularProgressIndicator());
+                    //             } else if (snapshot.hasError) {
+                    //               return Center(child: Text("Error: ${snapshot.error}"));
+                    //             } else if (!snapshot.hasData || snapshot.data!.statusCode != 200) {
+                    //               return const Center(child: Text("No Holidays Found"));
+                    //             } else {
+                    //               final body = jsonDecode(snapshot.data!.body);
+                    //               final holidays = body["data"] ?? [];
+                    //               if (holidays.isEmpty) {
+                    //                 return const Center(child: Text("No Holidays Found"));
+                    //               }
+                    //               return nextHolidays(context, holidays);
+                    //             }
+                    //           },
+                    //         ),
+                    //
+                    //         // Gallery
+                    //         gallery(context),
+                    //         SizedBox(height: MediaQuery.of(context).size.height / 30),
+                    //       ],
+                    //     ),
+                    //   ),
+                    // )
+                  ],
+                ),
               ),
             ),
     );
