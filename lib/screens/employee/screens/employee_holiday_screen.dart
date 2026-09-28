@@ -122,7 +122,11 @@ class _EmployeeHolidayScreenState extends State<EmployeeHolidayScreen> {
         "${ApiUrls.baseUrl}holiday/create-holiday",
       );
 
-      final holidayDate = date.toUtc().toIso8601String();
+      // final holidayDate = date.toUtc().toIso8601String();
+      final holidayDate = DateTime(date.year, date.month, date.day)
+          .toIso8601String()
+          .split('T')
+          .first;
 
       // IMPORTANT:
       // This creates Postman "form-data"
@@ -222,7 +226,11 @@ class _EmployeeHolidayScreenState extends State<EmployeeHolidayScreen> {
         "${ApiUrls.baseUrl}holiday/create-holiday",
       );
 
-      final holidayDate = selectedDate.toUtc().toIso8601String();
+      // final holidayDate = selectedDate.toUtc().toIso8601String();
+      final holidayDate = DateTime(selectedDate.year, selectedDate.month, selectedDate.day)
+          .toIso8601String()
+          .split('T')
+          .first;   // → "2026-09-10"
 
       // FORM-DATA
       final request = http.MultipartRequest("POST", url);

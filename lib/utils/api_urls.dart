@@ -19,6 +19,8 @@ class ApiUrls {
   static const dashboard = "dashboard/my";
   static const classesList = "classes";
   static const deleteHomework = "homework-upload1/delete";
+  static final payUGenerateHash = "${baseUrl}payu/generate-hash";
+
 
   // Results
   static const termname = 'termname';

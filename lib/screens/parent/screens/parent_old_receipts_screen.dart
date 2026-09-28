@@ -1,10 +1,14 @@
 import 'dart:convert';
+import 'dart:developer';
+import 'dart:math' hide log;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:payu_checkoutpro_flutter/PayUConstantKeys.dart';
+import 'package:payu_checkoutpro_flutter/payu_checkoutpro_flutter.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-import 'package:school_nx_pro/screens/parent/screens/payment_webview_screen.dart';
+import 'package:school_nx_pro/utils/ConstantUtils.dart';
 import '../../../utils/api_urls.dart';
 import '../../../utils/my_sharepreferences.dart';
 
@@ -29,17 +33,26 @@ class ParentOldReceiptsScreen extends StatefulWidget {
       _ParentOldReceiptsScreenState();
 }
 
-class _ParentOldReceiptsScreenState extends State<ParentOldReceiptsScreen> {
+class _ParentOldReceiptsScreenState extends State<ParentOldReceiptsScreen>
+    implements PayUCheckoutProProtocol {
   bool loading = true;
   Map<String, dynamic>? data;
   final TextEditingController payAmountController = TextEditingController();
   late final String _sessionYear;
   List<Map<String, dynamic>> receipts = [];
 
+  // PayU CheckoutPro SDK instance
+  late PayUCheckoutProFlutter _payUCheckoutPro;
+
+  // Payment ke dauraan amount track karne ke liye, taaki PayU ke
+  // callbacks (jo alag se aate hain) ise use kar sake.
+  double _paymentAmount = 0;
+
   @override
   void initState() {
     super.initState();
     _sessionYear = _deriveSessionYear();
+    _payUCheckoutPro = PayUCheckoutProFlutter(this);
     fetchFeeData();
   }
 
@@ -136,22 +149,16 @@ class _ParentOldReceiptsScreenState extends State<ParentOldReceiptsScreen> {
 
   Uri _buildPaymentLinkUri(double amount, String paymentMode) {
     final formattedAmount = amount.toStringAsFixed(2);
-    // return Uri.parse(
-    //   "${ApiUrls.baseUrl}SchoolFess4/ProcessPayment/${widget.studentId}",
-    // ).replace(queryParameters: {
-    //   "sessionYear": _sessionYear,
-    //   "paymentAmount": formattedAmount,
-    //   "paymentMode": paymentMode,
-    // });
-
     return Uri.parse(
-      "${ApiUrls.baseUrl}school-fees/process-payment/${widget.studentId}"
-          "?sessionYear=${widget.financialYear}&paymentAmount=$formattedAmount"
+        "${ApiUrls.baseUrl}school-fees/process-payment/${widget.studentId}"
+            "?sessionYear=${widget.financialYear}&paymentAmount=$formattedAmount"
     );
-
   }
 
-  String _extractTransactionId(String paymentUrl) {
+  String _extractTransactionId(String? paymentUrl) {
+    if (paymentUrl == null) {
+      return "TXN${DateTime.now().millisecondsSinceEpoch}";
+    }
     final uri = Uri.tryParse(paymentUrl);
     if (uri == null) {
       return "TXN${DateTime.now().millisecondsSinceEpoch}";
@@ -204,6 +211,14 @@ class _ParentOldReceiptsScreenState extends State<ParentOldReceiptsScreen> {
     });
   }
 
+  String _generatePayUTxnId() {
+    final rand = Random();
+    return 'TXN${DateTime.now().millisecondsSinceEpoch}${rand.nextInt(9999)}';
+  }
+
+  /// Ab yaha se seedha PayU CheckoutPro khulta hai — koi webview nahi,
+  /// koi custom payment-link backend call nahi. PayU ka apna checkout
+  /// screen UPI/Card/NetBanking sab khud dikhata hai.
   Future<void> _initiatePayment() async {
     final enteredAmount = payAmountController.text.trim();
     if (enteredAmount.isEmpty || enteredAmount == "0") {
@@ -225,14 +240,120 @@ class _ParentOldReceiptsScreenState extends State<ParentOldReceiptsScreen> {
       return;
     }
 
-    const paymentMode = "UPI";
-    setState(() => loading = true);
+    _paymentAmount = amount;
+
+    // Student ki details widget se hi already aati hain (constructor params)
+    String studentEmail = widget.studentEmail.trim();
+    if (studentEmail.isEmpty || studentEmail == "N/A") {
+      studentEmail = "parent@example.com";
+    }
+
+    String studentPhone = widget.studentPhone.trim();
+    if (studentPhone.isEmpty || studentPhone == "N/A" || studentPhone.length < 10) {
+      studentPhone = "9999999999";
+    }
+
+    String studentName = widget.studentName.trim();
+    if (studentName.isEmpty || studentName == "N/A") {
+      studentName = "Student";
+    }
+
+    final txnId = _generatePayUTxnId();
+
+    final Map<String, dynamic> payUPaymentParams = {
+      PayUPaymentParamKey.key: payUMerchantKey,
+      PayUPaymentParamKey.amount: amount.toStringAsFixed(2),
+      PayUPaymentParamKey.productInfo: "School Fees",
+      PayUPaymentParamKey.firstName: studentName,
+      PayUPaymentParamKey.email: studentEmail,
+      PayUPaymentParamKey.phone: studentPhone,
+      PayUPaymentParamKey.transactionId: txnId,
+      PayUPaymentParamKey.environment: payUEnvironment,
+      PayUPaymentParamKey.android_surl: payUAndroidSurl,
+      PayUPaymentParamKey.android_furl: payUAndroidFurl,
+      PayUPaymentParamKey.ios_surl: payUIosSurl,
+      PayUPaymentParamKey.ios_furl: payUIosFurl,
+      PayUPaymentParamKey.userCredential: "${payUMerchantKey}:$studentEmail",
+    };
+
+    final Map<String, dynamic> payUCheckoutProConfig = {
+      PayUCheckoutProConfigKeys.merchantName: "School Fees",
+      PayUCheckoutProConfigKeys.merchantLogo: "",
+      PayUCheckoutProConfigKeys.primaryColor: "#512DA8",
+      PayUCheckoutProConfigKeys.showExitConfirmationOnCheckoutScreen: true,
+      PayUCheckoutProConfigKeys.showExitConfirmationOnPaymentScreen: true,
+    };
 
     try {
-      final uri = _buildPaymentLinkUri(amount, paymentMode);
+      _payUCheckoutPro.openCheckoutScreen(
+        payUPaymentParams: payUPaymentParams,
+        payUCheckoutProConfig: payUCheckoutProConfig,
+      );
+    } catch (e, stackTrace) {
+      log("PayU checkout open failed: $e", name: '_initiatePayment');
+      log(stackTrace.toString(), name: '_initiatePayment stack');
+      _showSnack("Unable to start payment. Please try again.", color: Colors.red);
+    }
+  }
+
+  // -----------------------------------------------------------------
+  // PayUCheckoutProProtocol callbacks
+  // -----------------------------------------------------------------
+
+  @override
+  void generateHash(Map response) async {
+    final hashName = response['hashName'];
+    final hashString = response['hashString'];
+    String generatedHash = '';
+    final token = await MySharedPreferences.instance.getStringValue("token") ?? "";
+
+    try {
+      final res = await http.post(
+        Uri.parse(payUHashGenerationApiUrl),
+        headers: {
+          'Content-Type': 'application/json',
+          // Ngrok free-tier ke warning page ko bypass karne ke liye zaroori
+          'ngrok-skip-browser-warning': 'true',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'hashName': hashName,
+          'hashString': hashString,
+        }),
+      );
+
+      log("Hash API response [$hashName]: ${res.statusCode} -> ${res.body}", name: 'generateHash');
+
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        generatedHash = data['hash'] ?? '';
+      } else {
+        log("Hash API failed: ${res.statusCode} ${res.body}", name: 'generateHash');
+      }
+    } catch (e, stackTrace) {
+      log("generateHash error: $e", name: 'generateHash');
+      log(stackTrace.toString(), name: 'generateHash stack');
+    }
+
+    // Chahe success ho ya fail, SDK ko hamesha response bhejna zaroori hai —
+    // warna SDK stuck reh jata hai.
+    final Map<String, String> hashResponse = {hashName: generatedHash};
+    _payUCheckoutPro.hashGenerated(hash: hashResponse);
+  }
+
+  @override
+  void onPaymentSuccess(dynamic response) async {
+    log("PayU Success: $response", name: 'onPaymentSuccess');
+
+    const paymentMode = "PayU";
+
+    if (mounted) setState(() => loading = true);
+    
+    try {
+      final uri = _buildPaymentLinkUri(_paymentAmount, paymentMode);
       final token = await MySharedPreferences.instance.getStringValue("token") ?? "";
 
-      final response = await http.post(
+      final apiResponse = await http.post(
         uri,
         headers: {
           'Content-Type': 'application/json',
@@ -242,68 +363,91 @@ class _ParentOldReceiptsScreenState extends State<ParentOldReceiptsScreen> {
       );
 
       debugPrint("paymentLink url :${uri.path.toString()}");
-      debugPrint("payment Link Response : ${response.body}");
+      debugPrint("payment Link Response : ${apiResponse.body}");
       if (!mounted) return;
 
       setState(() => loading = false);
 
-      if (response.statusCode != 200) {
+      if (apiResponse.statusCode != 200) {
         _showSnack(
-          "Unable to start payment (${response.statusCode})",
+          "Unable to start payment (${apiResponse.statusCode})",
           color: Colors.red,
         );
         return;
       }
 
-      final decoded = json.decode(response.body) as Map<String, dynamic>;
-      final paymentUrl = decoded["data"]["paymentUrl"]?.toString() ?? "";
-      debugPrint("payment Link response : ${decoded}");
+      final decoded = json.decode(apiResponse.body) as Map<String, dynamic>;
+      final paymentUrl = decoded["data"]?["paymentUrl"]?.toString() ?? "";
+      debugPrint("payment Link response : $decoded");
       if (paymentUrl.isEmpty) {
         _showSnack("Payment link not available", color: Colors.red);
         return;
       }
-
-      final navResult = await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => PaymentWebViewScreen(paymentUrl: paymentUrl),
-        ),
-      );
-
-      if (!mounted) return;
-
-      if (navResult == "success") {
-        final txnId = _extractTransactionId(paymentUrl);
-        await generateReceipt(
-          studentName: widget.studentName,
-          amount: amount,
-          transactionId: txnId,
-          paymentMode: "Online (Paytm)",
-          date: DateTime.now(),
-        );
-        _applyLocalPayment(amount);
-        payAmountController.clear();
-        setState(() {
-          receipts.insert(0, {
-            "studentName": widget.studentName,
-            "amount": amount,
-            "txnId": txnId,
-            "paymentMode": "Online (Paytm)",
-            "date": DateTime.now().toString(),
-          });
-        });
-        _showSnack("✅ Payment Successful!", color: Colors.green);
-        await fetchFeeData();
-      } else if (navResult == "failure") {
-        _showSnack("❌ Payment Failed!", color: Colors.red);
-      } else {
-        _showSnack("Payment cancelled", color: Colors.orange);
-      }
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => loading = false);
-      _showSnack("Exception: $e", color: Colors.red);
+    } catch (e, stackTrace) {
+      log("Backend payment notify failed: $e", name: 'onPaymentSuccess');
+      log(stackTrace.toString(), name: 'onPaymentSuccess stack');
+      if (mounted) setState(() => loading = false);
+      _showSnack("Unable to confirm payment with server.", color: Colors.red);
+      return;
     }
+
+    final txnId = _extractTransactionId(response?.toString());
+
+    // await generateReceipt(
+    //   studentName: widget.studentName,
+    //   amount: _paymentAmount,
+    //   transactionId: txnId,
+    //   paymentMode: "PayU",
+    //   date: DateTime.now(),
+    // );
+
+    _applyLocalPayment(_paymentAmount);
+    payAmountController.clear();
+
+    if (mounted) {
+      setState(() {
+        receipts.insert(0, {
+          "studentName": widget.studentName,
+          "amount": _paymentAmount,
+          "txnId": txnId,
+          "paymentMode": "PayU",
+          "date": DateTime.now().toString(),
+        });
+      });
+    }
+
+    _showSnack("✅ Payment Successful!", color: Colors.green);
+    await fetchFeeData();
+  }
+
+  @override
+  void onPaymentFailure(dynamic response) {
+    log("PayU Failure: $response", name: 'onPaymentFailure');
+    _showSnack("❌ Payment Failed!", color: Colors.red);
+  }
+
+  @override
+  void onPaymentCancel(Map? response) {
+    log("PayU Cancelled: $response", name: 'onPaymentCancel');
+    _showSnack("Payment cancelled", color: Colors.orange);
+  }
+
+  @override
+  void onError(Map? response) {
+    log("PayU Error: $response", name: 'onError');
+    _showSnack("Something went wrong. Please try again.", color: Colors.red);
+  }
+
+  @override
+  void onApiError(Map? response) {
+    log("PayU API Error: $response", name: 'onApiError');
+    _showSnack("Payment API error. Please try again.", color: Colors.red);
+  }
+
+  @override
+  void onCheckoutProInitializeFailure(Map? response) {
+    log("PayU init failure: $response", name: 'onCheckoutProInitializeFailure');
+    _showSnack("Unable to start payment. Please try again.", color: Colors.red);
   }
 
   // ✅ PDF Receipt Generator

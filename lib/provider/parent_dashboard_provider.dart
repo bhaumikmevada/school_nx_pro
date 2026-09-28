@@ -30,12 +30,12 @@ class ParentDashboardProvider extends ChangeNotifier {
         paymentMethod: paymentMethod,
       );
 
-      log(response.toString(), name: "response addPayment");
+      debugPrint("addPayment response : $response");
 
       if (response?["data"]['paymentUrl'] != null) {
         String paymentUrl = response?["data"]['paymentUrl'];
         log(paymentUrl, name: "payment Url");
-        scaffoldMessage(message: "Redirecting to payment gateway");
+        // scaffoldMessage(message: "Redirecting to payment gateway");
         return paymentUrl;
       } else {
         scaffoldMessage(message: "Payment URL not found");

@@ -56,7 +56,7 @@ dependencies:
   webview_flutter: ^4.13.0
   webview_flutter_android: ^4.10.1
   webview_flutter_wkwebview: ^3.22.0
-  payu_checkoutpro_flutter: ^1.3.4
+  payu_checkoutpro_flutter: ^1.4.5
   connectivity_plus: ^6.1.0
   flutter_svg: ^2.2.3
   email_validator: ^3.0.0

@@ -211,94 +211,64 @@ class _EmployeeDrawerState extends State<EmployeeDrawer> {
                                   activeColor: AppColors.blue,
                                   value: isParent,
                                   onChanged: (value) async {
-                                    // value is true when switching to Parent, false when switching to Employee
-                                    if (value) {
-                                      // Switching to Parent role
-                                      final success = await authProvider.switchRole('parent');
-                                      if (success && context.mounted) {
-                                        // Navigate to SelectStudentScreen
-                                        final loginDataString = await MySharedPreferences.instance
-                                            .getStringValue('loginRequestData');
-                                        if (loginDataString != null) {
-                                          try {
-                                            final loginData = json.decode(loginDataString) as Map<String, dynamic>;
-                                            // Get children from authProvider or SharedPreferences
-                                            List<dynamic> children = authProvider.children.isNotEmpty
-                                                ? authProvider.children
-                                                : [];
-                                            if (children.isEmpty) {
-                                              final childrenString = await MySharedPreferences.instance
-                                                  .getStringValue('childrenList');
-                                              if (childrenString != null) {
-                                                try {
-                                                  children = json.decode(childrenString);
-                                                } catch (e) {
-                                                  children = [];
-                                                }
-                                              }
-                                            }
-                                            if (context.mounted) {
-                                              Navigator.pushAndRemoveUntil(
-                                                context,
-                                                MaterialPageRoute(
-                                                  builder: (context) => SelectStudentScreen(
-                                                    children: children,
-                                                    loginData: loginData,
-                                                  ),
-                                                ),
-                                                (route) => false,
-                                              );
-                                            }
-                                          } catch (e) {
-                                            // Handle error
-                                          }
+                                    final targetRole = value ? 'parent' : 'employee';
+                                    debugPrint("targetRole : $targetRole");
+
+                                    final success = await authProvider.switchRole(context, targetRole);
+                                    if (!success || !context.mounted) return;
+
+                                    final loginDataString =
+                                    await MySharedPreferences.instance.getStringValue('loginRequestData');
+                                    Map<String, dynamic> loginData = {};
+                                    if (loginDataString != null) {
+                                      try {
+                                        loginData = json.decode(loginDataString) as Map<String, dynamic>;
+                                      } catch (_) {}
+                                    }
+
+                                    // children fallback
+                                    List<dynamic> children = authProvider.children.isNotEmpty
+                                        ? List<dynamic>.from(authProvider.children)
+                                        : [];
+                                    if (children.isEmpty) {
+                                      final childrenString =
+                                      await MySharedPreferences.instance.getStringValue('childrenList');
+                                      if (childrenString != null) {
+                                        try {
+                                          children = List<dynamic>.from(json.decode(childrenString));
+                                        } catch (_) {
+                                          children = [];
                                         }
                                       }
+                                    }
+
+                                    if (!context.mounted) return;
+
+                                    if (targetRole == 'employee') {
+                                      // parent -> employee  =>  SELECT STUDENT
+                                      Navigator.pushAndRemoveUntil(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => SelectStudentScreen(
+                                            children: children,
+                                            loginData: loginData,
+                                          ),
+                                        ),
+                                            (route) => false,
+                                      );
                                     } else {
-                                      // Switching to Employee role
-                                      final success = await authProvider.switchRole('employee');
-                                      if (success && context.mounted) {
-                                        // Navigate to SelectInstituteScreen
-                                        final loginDataString = await MySharedPreferences.instance
-                                            .getStringValue('loginRequestData');
-                                        if (loginDataString != null) {
-                                          try {
-                                            final loginData = json.decode(loginDataString) as Map<String, dynamic>;
-                                            // Use instituteNames from authProvider directly
-                                            final institutes = authProvider.instituteNames;
-                                            // Get children from authProvider or SharedPreferences
-                                            List<dynamic> children = authProvider.children.isNotEmpty
-                                                ? authProvider.children
-                                                : [];
-                                            if (children.isEmpty) {
-                                              final childrenString = await MySharedPreferences.instance
-                                                  .getStringValue('childrenList');
-                                              if (childrenString != null) {
-                                                try {
-                                                  children = json.decode(childrenString);
-                                                } catch (e) {
-                                                  children = [];
-                                                }
-                                              }
-                                            }
-                                            if (context.mounted) {
-                                              Navigator.pushAndRemoveUntil(
-                                                context,
-                                                MaterialPageRoute(
-                                                  builder: (context) => SelectInstituteScreen(
-                                                    institutes: institutes,
-                                                    children: children,
-                                                    loginData: loginData,
-                                                  ),
-                                                ),
-                                                (route) => false,
-                                              );
-                                            }
-                                          } catch (e) {
-                                            // Handle error
-                                          }
-                                        }
-                                      }
+                                      // employee -> parent  =>  SELECT INSTITUTE
+                                      Navigator.pushAndRemoveUntil(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => SelectInstituteScreen(
+                                            institutes: authProvider.instituteNames,
+                                            children: children,
+                                            loginData: loginData,
+                                          ),
+                                        ),
+                                            (route) => false,
+                                      );
                                     }
                                   },
                                 ),

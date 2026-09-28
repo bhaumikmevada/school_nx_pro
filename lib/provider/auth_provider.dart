@@ -15,13 +15,14 @@ class AuthProvider extends ChangeNotifier {
   String userId = '';
   List<dynamic> children = [];
   List<dynamic> institutes = [];
+  List<String> instituteNames = [];
   String allottedTeacherId = '';
   Map<String, dynamic> userData = {};
 
-  List<String> instituteNames = [];
   bool get hasParentRole => _hasParentRole;
   bool get hasEmployeeRole => _hasEmployeeRole;
   List<String> get availableRoles => List.unmodifiable(_availableRoles);
+
   bool _hasParentRole = false;
   bool _hasEmployeeRole = false;
   String? _parentUserId;
@@ -29,18 +30,15 @@ class AuthProvider extends ChangeNotifier {
   List<String> _availableRoles = [];
 
   bool userCheck(String user) => user == userId;
-
-  bool isParent() => userType == 'parent';
+  bool isParent() => userType.toLowerCase() == 'parent';
   bool isEmployee() => userType.toLowerCase() == 'employee';
 
   Future<void> getToken() async {
     String? token = await MySharedPreferences.instance.getStringValue("token");
     String? savedUserType =
-        await MySharedPreferences.instance.getStringValue("userType");
+    await MySharedPreferences.instance.getStringValue("userType");
     loggedIn = token != null;
-    if (savedUserType != null) {
-      userType = savedUserType;
-    }
+    if (savedUserType != null) userType = savedUserType;
     notifyListeners();
   }
 
@@ -49,48 +47,54 @@ class AuthProvider extends ChangeNotifier {
     final data = response['data'];
 
     if (token == null || data == null || data is! List || data.isEmpty) {
-      log("Login response missing required fields. Skipping saveUserData.");
+      log("Login response missing required fields.");
       return;
     }
 
     await MySharedPreferences.instance.setStringValue('token', token);
+
+    // Reset everything
     _hasParentRole = false;
     _hasEmployeeRole = false;
     _parentUserId = null;
     _employeeUserId = null;
     _availableRoles = [];
-
-    // Reset collections
     children = [];
     institutes = [];
     instituteNames = [];
     userData = {};
+    allottedTeacherId = '';
 
     for (final raw in data) {
       if (raw is! Map<String, dynamic>) continue;
-
       final role = (raw['userType'] ?? '').toString().toLowerCase();
 
       switch (role) {
+      // ==================== PARENT ====================
         case 'parent':
           _hasParentRole = true;
-          _availableRoles.add('parent');
-          _parentUserId =
-              raw['parentUserId']?.toString() ?? raw['userId']?.toString();
+          if (!_availableRoles.contains('parent')) _availableRoles.add('parent');
 
-          userData['parentName'] = raw['parentName'];
-          userData['parentMobile'] = raw['parentMobile'];
-          userData['parentCity'] = raw['parentCity'];
+          _parentUserId = raw['parentId']?.toString() ??
+              raw['parentUserId']?.toString() ??
+              raw['userId']?.toString();
 
-          final parentDashboards = raw['additionalData']?['parentDashboard'];
+          userData['parentName'] = raw['parentName'] ?? '';
+          userData['parentMobile'] = raw['parentMobile'] ?? '';
+
+          // Children extraction (works for single + dual)
+          dynamic parentDashboards = raw['childDetails']?['parentDashboard'] ??
+              raw['additionalData']?['parentDashboard'];
+
           if (parentDashboards is List && parentDashboards.isNotEmpty) {
-            final parentDashboard =
-                parentDashboards.first as Map<String, dynamic>;
-            final childrenData = parentDashboard['children'];
-            if (childrenData is List) {
-              children = List<dynamic>.from(childrenData);
-              await MySharedPreferences.instance
-                  .setStringValue('childrenList', jsonEncode(childrenData));
+            final firstDash = parentDashboards.first;
+            if (firstDash is Map<String, dynamic>) {
+              final childrenData = firstDash['children'];
+              if (childrenData is List) {
+                children = List<dynamic>.from(childrenData);
+                await MySharedPreferences.instance
+                    .setStringValue('childrenList', jsonEncode(children));
+              }
             }
           }
 
@@ -98,98 +102,98 @@ class AuthProvider extends ChangeNotifier {
               .setStringValue('parentName', raw['parentName'] ?? '');
           break;
 
+      // ==================== EMPLOYEE ====================
         case 'employee':
           _hasEmployeeRole = true;
-          _availableRoles.add('employee');
-          _employeeUserId =
-              raw['employeeUserId']?.toString() ?? raw['userId']?.toString();
+          if (!_availableRoles.contains('employee')) _availableRoles.add('employee');
 
-          userData['employeeName'] = raw['employeeName'];
-          userData['employeeMobile'] = raw['employeeMobile'];
-          userData['employeeID'] = raw['employeeID'];
-          userData['institute'] = raw['institute'];
+          _employeeUserId = raw['employeeManualId']?.toString() ??
+              raw['employeeUserId']?.toString() ??
+              raw['userId']?.toString();
+
+          userData['employeeName'] = raw['employeeName'] ?? '';
+          userData['employeeMobile'] = raw['employeeMobile'] ?? '';
+          userData['employeeID'] = raw['employeeManualId'] ?? raw['employeeID'];
+          userData['institute'] = raw['institute'] ?? '';
 
           await MySharedPreferences.instance
               .setStringValue('employeeName', raw['employeeName'] ?? '');
           await MySharedPreferences.instance.setStringValue(
-              'employeeID', raw['employeeID']?.toString() ?? '');
-          await MySharedPreferences.instance.setStringValue('employeeUserId', _employeeUserId.toString());
+              'employeeID',
+              (raw['employeeManualId'] ?? raw['employeeID'])?.toString() ?? '');
+          await MySharedPreferences.instance
+              .setStringValue('employeeUserId', _employeeUserId ?? '');
 
-          final employeeDashboards = raw['additionalData']?['employeeDashboard'];
+          // Institutes extraction (flat shape - your current API)
+          dynamic employeeDashboards =
+              raw['attributeValues']?['employeeDashboard'] ??
+                  raw['additionalData']?['employeeDashboard'];
+
           if (employeeDashboards is List && employeeDashboards.isNotEmpty) {
-            final employeeDashboard =
-                employeeDashboards.first as Map<String, dynamic>;
-            final institutesData = employeeDashboard['institutes'];
-            if (institutesData is List) {
-              debugPrint("institutes Data : $institutesData");
+            final firstItem = employeeDashboards.first;
 
-              institutes = List<dynamic>.from(institutesData);
-              instituteNames = institutes
-                  .map((e) => e['instituteName'].toString())
-                  .toList();
-              await MySharedPreferences.instance.setStringValue(
-                  'institutesList', jsonEncode(instituteNames));
+            if (firstItem is Map<String, dynamic> &&
+                firstItem['institutes'] is List) {
+              // Old nested
+              institutes = List<dynamic>.from(firstItem['institutes']);
+              allottedTeacherId =
+                  firstItem['allottedTeacherId']?.toString() ?? '';
+            } else {
+              // New flat (your responses)
+              institutes = List<dynamic>.from(employeeDashboards);
+              allottedTeacherId = raw['oldNotesTeacherId']?.toString() ?? '';
             }
-            allottedTeacherId =
-                employeeDashboard['allottedTeacherId']?.toString() ?? '';
+
+            instituteNames = institutes
+                .map((e) => (e['instituteName'] ?? '').toString())
+                .where((n) => n.isNotEmpty)
+                .toList();
+
+            await MySharedPreferences.instance
+                .setStringValue('institutesList', jsonEncode(instituteNames));
+            await MySharedPreferences.instance
+                .setStringValue('institutesFullList', jsonEncode(institutes));
+
             if (allottedTeacherId.isNotEmpty) {
-              await MySharedPreferences.instance.setStringValue(
-                  'allottedTeacherId', allottedTeacherId);
+              await MySharedPreferences.instance
+                  .setStringValue('allottedTeacherId', allottedTeacherId);
             }
+
+            debugPrint("Employee institutes loaded: $instituteNames");
           }
           break;
 
         case 'admin':
-          _availableRoles.add('admin');
+          if (!_availableRoles.contains('admin')) _availableRoles.add('admin');
           await MySharedPreferences.instance
               .setStringValue('adminName', raw['employeeName'] ?? '');
-          break;
-
-        default:
           break;
       }
     }
 
-    // Determine default role preference
-    String? defaultType;
-    String? defaultUserId;
-
+    // Default role: Parent first
     if (_hasParentRole) {
-      defaultType = 'parent';
-      defaultUserId = _parentUserId;
+      userType = 'parent';
+      userId = _parentUserId ?? '';
     } else if (_hasEmployeeRole) {
-      defaultType = 'employee';
-      defaultUserId = _employeeUserId;
-    } else {
-      final firstUser = data.first as Map<String, dynamic>;
-      defaultType = firstUser['userType']?.toString();
-      defaultUserId = firstUser['parentUserId']?.toString() ??
-          firstUser['employeeUserId']?.toString() ??
-          firstUser['adminUserId']?.toString();
+      userType = 'employee';
+      userId = _employeeUserId ?? '';
     }
 
-    if (defaultType != null) {
-      userType = defaultType;
-      await MySharedPreferences.instance.setStringValue('userType', defaultType);
-    }
+    debugPrint("userType : $userType");
 
-    if (defaultUserId != null) {
-      userId = defaultUserId;
-      await MySharedPreferences.instance.setStringValue('userId', defaultUserId);
-    }
-
-    if (_availableRoles.isNotEmpty) {
-      await MySharedPreferences.instance
-          .setStringValue('availableRoles', jsonEncode(_availableRoles));
-    }
-
+    await MySharedPreferences.instance.setStringValue('userType', userType);
+    await MySharedPreferences.instance.setStringValue('userId', userId);
+    await MySharedPreferences.instance
+        .setStringValue('availableRoles', jsonEncode(_availableRoles));
     await MySharedPreferences.instance
         .setStringValue('userData', jsonEncode(userData));
   }
 
-  Future<void> handleLogin(BuildContext context, String mobile, String password) async {
+  Future<void> handleLogin(
+      BuildContext context, String mobile, String password) async {
     try {
-      Map<String, dynamic> data = {
+      final data = {
         "mobileNo": mobile.trim().replaceAll("+91", ""),
         "password": password,
         "userName": "string",
@@ -197,147 +201,215 @@ class AuthProvider extends ChangeNotifier {
         "lastName": "string"
       };
 
-      print("📤 Login Request Data: $data");
-
+      print("📤 Login Request: $data");
       final response = await authRepo.loginApi(data);
-      print("Response login :- ${response.toString()}");
+      print("Response: $response");
 
-      if (response != null && response['statusCode'] == 200) {
-        final bool isKnownAdmin =
+      if (response == null) {
+        scaffoldMessage(message: 'Something went wrong!!');
+        return;
+      }
+
+      // success: false handle
+      if (response['success'] == false) {
+        scaffoldMessage(message: response['message'] ?? 'Login failed');
+        return;
+      }
+
+      if (response['statusCode'] == 200) {
+        final isKnownAdmin =
             mobile.trim().replaceAll("+91", "") == "9893878562" &&
                 password == "9893878562";
 
-        Map<String, dynamic> normalizedResponse =
-            Map<String, dynamic>.from(response);
-        dynamic responseData = normalizedResponse['data'];
+        Map<String, dynamic> normalized = Map<String, dynamic>.from(response);
+        dynamic responseData = normalized['data'];
 
-        // Fallback: if the API returns empty data for the known admin account,
-        // synthesize an admin role so the app can continue.
         if ((responseData == null ||
-                (responseData is List && responseData.isEmpty)) &&
+            (responseData is List && responseData.isEmpty)) &&
             isKnownAdmin) {
-          normalizedResponse = {
-            ...normalizedResponse,
+          normalized = {
+            ...normalized,
             'data': [
               {
                 'userType': 'admin',
                 'adminUserId': mobile.trim().replaceAll("+91", ""),
-                'additionalData': <String, dynamic>{},
               }
-            ],
+            ]
           };
-          responseData = normalizedResponse['data'];
+          responseData = normalized['data'];
         }
 
-        // Guard: still no payload after fallback
         if (responseData == null ||
             (responseData is List && responseData.isEmpty)) {
           scaffoldMessage(
-            message:
-                "Login succeeded but no user data/roles were returned. Please contact your school admin.",
-          );
+              message:
+              "Login succeeded but no user data returned. Contact admin.");
           return;
         }
 
-        await _saveUserData(normalizedResponse);
+        await _saveUserData(normalized);
         await getToken();
 
-        // 🟢 Save loginRequestData for splash usage
-        await MySharedPreferences.instance.setStringValue(
-          'loginRequestData',
-          jsonEncode(data),
-        );
+        await MySharedPreferences.instance
+            .setStringValue('loginRequestData', jsonEncode(data));
 
         if (!context.mounted) return;
 
-        // Defer navigation to avoid Navigator lock errors
         Future.microtask(() {
           if (!context.mounted) return;
-          
-          // Close progress dialog first
-          Navigator.pop(context);
-          
-          // Then navigate to appropriate screen
-          if (_hasParentRole) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => SelectStudentScreen(
-                  children: children,
-                  loginData: data,
-                ),
-              ),
-            );
-          } else if (_hasEmployeeRole) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => SelectInstituteScreen(
-                  institutes: instituteNames,
-                  children: children,
-                  loginData: data,
-                ),
-              ),
-            );
-          } else if (_availableRoles.contains('admin')) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const AdminDashboard(),
-              ),
-            );
-          } else {
-            scaffoldMessage(message: "Unknown user type");
-          }
+          Navigator.pop(context); // close loader
+          _navigateAfterLogin(context, data);
         });
 
         notifyListeners();
       } else {
-        scaffoldMessage(message: response?['message'] ?? 'Unknown error');
+        scaffoldMessage(message: response['message'] ?? 'Unknown error');
       }
-    } catch (e, stacktrace) {
-
-      log("❌ Exception in login: $e", name: "Auth error");
-      log("🧵 Stacktrace: $stacktrace", name: "Auth stacktrace");
+    } catch (e, st) {
+      log("Login Exception: $e\n$st");
       scaffoldMessage(message: 'Something went wrong!!');
     }
   }
 
-  Future<Map<String, dynamic>> getUserData() async {
-    String? data =
-        await MySharedPreferences.instance.getStringValue('userData');
-    if (data != null) {
-      return Map<String, dynamic>.from(userData);
+  void _navigateAfterLogin(
+      BuildContext context, Map<String, dynamic> loginData) {
+
+    // Priority for all 3 cases
+    if (_hasParentRole && children.isNotEmpty) {
+      debugPrint("after Login _hasParentRole : $_hasParentRole && children : ${children.length}");
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => SelectStudentScreen(
+            children: children,
+            loginData: loginData,
+          ),
+        ),
+      );
+    } else if (_hasEmployeeRole && instituteNames.isNotEmpty) {
+      debugPrint("after Login _hasEmployeeRole : $_hasEmployeeRole && instituteNames : $instituteNames");
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => SelectInstituteScreen(
+            institutes: instituteNames,
+            children: children,
+            loginData: loginData,
+          ),
+        ),
+      );
+    } else if (_hasParentRole) {
+      debugPrint("after Login _hasParentRole : $_hasParentRole");
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => SelectStudentScreen(
+            children: children,
+            loginData: loginData,
+          ),
+        ),
+      );
+    } else if (_availableRoles.contains('admin')) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const AdminDashboard()),
+      );
+    } else {
+      scaffoldMessage(message: "Unknown user type");
     }
-    return {};
   }
 
-  /// Switch between available roles (Parent <-> Employee)
-  /// Returns true if switch was successful, false otherwise
-  Future<bool> switchRole(String targetRole) async {
-    if (targetRole.toLowerCase() == 'parent' && !_hasParentRole) {
-      return false;
+  Future<Map<String, dynamic>> getUserData() async {
+    final data = await MySharedPreferences.instance.getStringValue('userData');
+    if (data != null) {
+      try {
+        return Map<String, dynamic>.from(jsonDecode(data));
+      } catch (_) {}
     }
-    if (targetRole.toLowerCase() == 'employee' && !_hasEmployeeRole) {
-      return false;
+    return Map<String, dynamic>.from(userData);
+  }
+
+  /// Switch Role + Navigate to correct screen
+  Future<bool> switchRole(BuildContext context, String targetRole) async {
+    final role = targetRole.toLowerCase();
+    if (role == 'parent' && !_hasParentRole) return false;
+    if (role == 'employee' && !_hasEmployeeRole) return false;
+
+    final newUserId = role == 'parent' ? _parentUserId : _employeeUserId;
+    if (newUserId == null) return false;
+
+    userType = role;
+    userId = newUserId;
+
+    await MySharedPreferences.instance.setStringValue('userType', userType);
+    await MySharedPreferences.instance.setStringValue('userId', userId);
+
+    // Restore data
+    if (role == 'parent' && children.isEmpty) {
+      final saved =
+      await MySharedPreferences.instance.getStringValue('childrenList');
+      if (saved != null && saved.isNotEmpty) {
+        try {
+          children = List<dynamic>.from(jsonDecode(saved));
+        } catch (_) {}
+      }
     }
 
-    String? newUserId;
-    if (targetRole.toLowerCase() == 'parent') {
-      newUserId = _parentUserId;
-    } else if (targetRole.toLowerCase() == 'employee') {
-      newUserId = _employeeUserId;
+    if (role == 'employee' && instituteNames.isEmpty) {
+      final savedNames =
+      await MySharedPreferences.instance.getStringValue('institutesList');
+      final savedFull = await MySharedPreferences.instance
+          .getStringValue('institutesFullList');
+      if (savedNames != null && savedNames.isNotEmpty) {
+        try {
+          instituteNames = List<String>.from(jsonDecode(savedNames));
+        } catch (_) {}
+      }
+      if (savedFull != null && savedFull.isNotEmpty) {
+        try {
+          institutes = List<dynamic>.from(jsonDecode(savedFull));
+        } catch (_) {}
+      }
     }
 
-    if (newUserId != null) {
-      userType = targetRole.toLowerCase();
-      userId = newUserId;
-      await MySharedPreferences.instance.setStringValue('userType', userType);
-      await MySharedPreferences.instance.setStringValue('userId', userId);
-      notifyListeners();
-      return true;
+    notifyListeners();
+
+    if (!context.mounted) return true;
+
+    final loginStr =
+    await MySharedPreferences.instance.getStringValue('loginRequestData');
+    Map<String, dynamic> loginData = {};
+    if (loginStr != null) {
+      try {
+        loginData = Map<String, dynamic>.from(jsonDecode(loginStr));
+      } catch (_) {}
     }
 
-    return false;
+    if (role == 'parent') {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (_) => SelectStudentScreen(
+            children: children,
+            loginData: loginData,
+          ),
+        ),
+            (route) => false,
+      );
+    } else {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (_) => SelectInstituteScreen(
+            institutes: instituteNames,
+            children: children,
+            loginData: loginData,
+          ),
+        ),
+            (route) => false,
+      );
+    }
+
+    return true;
   }
 }
